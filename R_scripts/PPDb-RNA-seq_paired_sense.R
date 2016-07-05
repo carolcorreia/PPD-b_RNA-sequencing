@@ -1,15 +1,16 @@
-###############################################################################
-# RNA-seq Time Course: PPD-b stimulated vs unstimulated peripheral blood      #
-# paired-end reads.                                                           #
-#           --- R workflow for analyses of known sense genes ---              #
-###############################################################################
+##########################################################################
+# RNA-seq Time Course: PPD-b stimulated vs unstimulated peripheral blood #
+#                           paired-end reads.                            #
+#                                                                        #
+#           --- R workflow for analyses of known sense genes ---         #
+##########################################################################
 
 # Based on the workflow created by Nalpas, N.C. (2014) 
 # DOI badge: http://dx.doi.org/10.5281/zenodo.12474
 
 # Author of current version (4.0.0): Correia, C.N.
 # DOI badge of current version:
-# Last updated on 17/06/2016
+# Last updated on 29/06/2016
 
 # R version 3.3.0 (2016-05-03) -- "Supposedly Educational"
 # Bioconductor version 3.3 (BiocInstaller 1.22.2)
@@ -33,7 +34,9 @@ source("https://bioconductor.org/biocLite.R")
 biocLite("AnnotationFuncs")
 biocLite("Biobase")
 biocLite("edgeR")
-biocLite("GOexpress")
+biocLite("geneLenDataBase")
+biocLite("GO.db")
+biocLite("goseq")
 biocLite("limma")
 biocLite("org.Bt.eg.db")
 
@@ -59,7 +62,8 @@ library(dplyr)            # Version 0.4.3
 library(edgeR)            # Version 3.14.0
 library(extrafont)        # Version 0.17
 library(ggplot2)          # Version 2.1.0
-library(GOexpress)        # Version 1.6.0
+library(GO.db)            # Version 3.3.0
+library(goseq)            # Version 1.24.0
 library(grDevices)        # Version 3.3.0
 library(grid)             # Version 3.3.0
 library(gridExtra)        # Version 2.2.1    
@@ -408,6 +412,7 @@ cond.time <- factor(paste(PPDb_norm$samples$group,
 block_animal <- model.matrix(~animal + cond.time,
                              data = PPDb_norm$samples)
 
+
 dim(block_animal)
 dim(PPDb_norm$samples)
 head(block_animal)
@@ -480,83 +485,142 @@ PPDb_fit <- glmFit(y = PPDb_disp, design = block_animal)
 names(PPDb_fit)
 colnames(PPDb_fit$design)
 
-# Make a contrast vector for pairwise comparisons between the groups
-#my.contrasts <- makeContrasts(pre1   = P.W_1-U.W_1,
-#                              W1     = P.W1-U.W1,
-#                              W2     = P.W2-U.W2,
-#                              W10    = P.W10-U.W10,
-#                             levels = PPDb_fit)
-
-# Test for differential expression between the different time points/treatments
-pre1.lrt <- glmLRT(PPDb_fit,
-                   contrast = my.contrasts[,"pre1"])
+# Test for differential expression between the different time points/treatments,
+# using the coefficients from PPDbfit$design
+pre1.lrt <- glmLRT(PPDb_fit, coef = "cond.timeP.W_1")
 DE.pre1 <- topTags(object        = pre1.lrt,
                    n             = "inf",
                    adjust.method = "BH")
 head(DE.pre1$table)
 
-W1.lrt <- glmLRT(PPDb_fit,
-                 contrast = my.contrasts[,"W1"])
+W1.lrt <- glmLRT(PPDb_fit, coef = "cond.timeP.W1")
 DE.W1 <- topTags(object        = W1.lrt,
                  n             = "inf",
                  adjust.method = "BH")
 head(DE.W1$table)
 
-W2.lrt <- glmLRT(PPDb_fit,
-                 contrast = my.contrasts[,"W2"])
+W2.lrt <- glmLRT(PPDb_fit, coef = "cond.timeP.W2")
 DE.W2 <- topTags(object        = W2.lrt,
                  n             = "inf",
                  adjust.method = "BH")
 head(DE.W2$table)
 
-W10.lrt <- glmLRT(PPDb_fit,
-                  contrast = my.contrasts[,"W10"])
+W10.lrt <- glmLRT(PPDb_fit, coef = "cond.timeP.W10")
 DE.W10 <- topTags(object        = W10.lrt,
                   n             = "inf",
                   adjust.method = "BH")
 head(DE.W10$table)
 
-##########################################################################
-# Output lists of DE genes that passed FDR correction at each time point # ----
-#              Comparisons P vs U [p-value cut-off 0.05]                 #
-##########################################################################
+### Previous test with DE call when specifying contrasts (no intercept in design matrix)
+#my.contrasts <- makeContrasts(pre1   = P.W_1-U.W_1,
+#                              W1     = P.W1-U.W1,
+#                              W2     = P.W2-U.W2,
+#                              W10    = P.W10-U.W10,
+#                             levels = PPDb_fit)
+#pre1.lrt <- glmLRT(PPDb_fit,
+#                   contrast = my.contrasts[,"pre1"])
+#DE.pre1 <- topTags(object        = pre1.lrt,
+#                   n             = "inf",
+#                   adjust.method = "BH")
+#head(DE.pre1$table)
 
-FDRDE.pre1 <- DE.pre1$table[DE.pre1$table[ , 8] < 0.05, ]
-write.table(x         = FDRDE.pre1,
-            file      = "FDR_DE_pre1.txt",
+#W1.lrt <- glmLRT(PPDb_fit,
+#                 contrast = my.contrasts[,"W1"])
+#DE.W1 <- topTags(object        = W1.lrt,
+#                 n             = "inf",
+#                 adjust.method = "BH")
+#head(DE.W1$table)
+
+#W2.lrt <- glmLRT(PPDb_fit,
+#                 contrast = my.contrasts[,"W2"])
+#DE.W2 <- topTags(object        = W2.lrt,
+#                 n             = "inf",
+#                 adjust.method = "BH")
+#head(DE.W2$table)
+
+#W10.lrt <- glmLRT(PPDb_fit,
+#                  contrast = my.contrasts[,"W10"])
+#DE.W10 <- topTags(object        = W10.lrt,
+#                 n             = "inf",
+#                  adjust.method = "BH")
+#head(DE.W10$table)
+
+#########################################
+# Output lists of DE genes: FDR < 0.05  # ----
+# Comparisons P vs U at each time point #
+#########################################
+
+FDR_0.05_DE.pre1 <- subset(DE.pre1$table, FDR < 0.05)
+write.table(x         = FDR_0.05_DE.pre1,
+            file      = "FDR_0-05_pre1.txt",
             sep       = "\t",
             quote     = FALSE,
             row.names = TRUE,
             col.names = NA)
 
-FDRDE.W1 <- DE.W1$table[DE.W1$table[ , 8] < 0.05, ]
-write.table(x         = FDRDE.W1,
-            file      = "FDR_DE_W1.txt",
+FDR_0.05_DE.W1 <- subset(DE.W1$table, FDR < 0.05)
+write.table(x         = FDR_0.05_DE.W1,
+            file      = "FDR_0-05_W1.txt",
             sep       = "\t",
             quote     = FALSE,
             row.names = TRUE,
             col.names = NA)
 
-FDRDE.W2 <- DE.W2$table[DE.W2$table[ , 8] < 0.05, ]
-write.table(x         = FDRDE.W2,
-            file      = "FDR_DE_W2.txt",
+FDR_0.05_DE.W2 <- subset(DE.W2$table, FDR < 0.05)
+write.table(x         = FDR_0.05_DE.W2,
+            file      = "FDR_0-05_W2.txt",
             sep       = "\t",
             quote     = FALSE,
             row.names = TRUE,
             col.names = NA)
 
-FDRDE.W10 <- DE.W10$table[DE.W10$table[ , 8] < 0.05, ]
-write.table(x         = FDRDE.W10,
-            file      = "FDR_DE_W10.txt",
+FDR_0.05_DE.W10 <- subset(DE.W10$table, FDR < 0.05)
+write.table(x         = FDR_0.05_DE.W10,
+            file      = "FDR_0-05_W10.txt",
             sep       = "\t",
             quote     = FALSE,
             row.names = TRUE,
             col.names = NA)
 
+###############################################################
+# Output lists of DE genes: FDR < 0.05 and absolute logFC > 1 # ----
+###############################################################
+
+FDRlogFC_DE.pre1 <- subset(DE.pre1$table, abs(logFC) > 1 & FDR < 0.05)
+write.table(x         = FDRlogFC_DE.pre1,
+            file      = "FDRlogFC_pre1.txt",
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = TRUE,
+            col.names = NA)
+
+FDRlogFC_DE.W1 <- subset(DE.W1$table, abs(logFC) > 1 & FDR < 0.05)
+write.table(x         = FDRlogFC_DE.W1,
+            file      = "FDRlogFC_W1.txt",
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = TRUE,
+            col.names = NA)
+
+FDRlogFC_DE.W2 <- subset(DE.W2$table, abs(logFC) > 1 & FDR < 0.05)
+write.table(x         = FDRlogFC_DE.W2,
+            file      = "FDRlogFC_W2.txt",
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = TRUE,
+            col.names = NA)
+
+FDRlogFC_DE.W10 <- subset(DE.W10$table, abs(logFC) > 1 & FDR < 0.05)
+write.table(x         = FDRlogFC_DE.W10,
+            file      = "FDRlogFC_W10.txt",
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = TRUE,
+            col.names = NA)
 
 ###################################################
 # Output lists of all DE genes at each time point # ----
-#   Comparisons P vs U [p-value cut-off 0.05]     #
+#  [without selection by FDR or absolute logFC]   #
 ###################################################
 
 write.table(x         = DE.pre1,
@@ -589,7 +653,8 @@ write.table(x         = DE.W10,
 
 #########################################################
 # Merge all DE call data from the different time points # ----
-#             into a single data frame                  # 
+#              into a single data frame                 #
+#     [without selection by FDR or absolute logFC]      # 
 #########################################################
 
 Full_DE_PPDb <- merge(x  = DE.pre1$table,
@@ -649,27 +714,99 @@ write.table(x         = Full_DE_PPDb,
             row.names = TRUE,
             col.names = NA)
 
-#######################################################
-# Venn diagram of DE genes that passed FDR correction # ----
-#        Comparisons P vs U [p-value cut-off 0.05]    #
-#######################################################
+########################################
+# Output lists of DE genes: FDR < 0.01 # ----
+########################################
 
-# Turn gene IDs of significant DE genes, that passed FDR correction,
+FDR_0.01_DE.pre1 <- subset(DE.pre1$table, FDR < 0.01)
+write.table(x         = FDR_0.01_DE.pre1,
+            file      = "FDR_0-01_pre1.txt",
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = TRUE,
+            col.names = NA)
+
+FDR_0.01_DE.W1 <- subset(DE.W1$table, FDR < 0.01)
+write.table(x         = FDR_0.01_DE.W1,
+            file      = "FDR_0-01_W1.txt",
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = TRUE,
+            col.names = NA)
+
+FDR_0.01_DE.W2 <- subset(DE.W2$table, FDR < 0.01)
+write.table(x         = FDR_0.01_DE.W2,
+            file      = "FDR_0-01_W2.txt",
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = TRUE,
+            col.names = NA)
+
+FDR_0.01_DE.W10 <- subset(DE.W10$table, FDR < 0.01)
+write.table(x         = FDR_0.01_DE.W10,
+            file      = "FDR_0-01_W10.txt",
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = TRUE,
+            col.names = NA)
+
+#########################################
+# Output lists of DE genes: FDR < 0.001 # ----
+#########################################
+
+FDR_0001_DE.pre1 <- subset(DE.pre1$table, FDR < 0.001)
+write.table(x         = FDR_0001_DE.pre1,
+            file      = "FDR_0001_pre1.txt",
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = TRUE,
+            col.names = NA)
+
+FDR_0001_DE.W1 <- subset(DE.W1$table, FDR < 0.001)
+write.table(x         = FDR_0001_DE.W1,
+            file      = "FDR_0001_W1.txt",
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = TRUE,
+            col.names = NA)
+
+FDR_0001_DE.W2 <- subset(DE.W2$table, FDR < 0.001)
+write.table(x         = FDR_0001_DE.W2,
+            file      = "FDR_0001_W2.txt",
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = TRUE,
+            col.names = NA)
+
+FDR_0001_DE.W10 <- subset(DE.W10$table, FDR < 0.001)
+write.table(x         = FDR_0001_DE.W10,
+            file      = "FDR_0001_W10.txt",
+            sep       = "\t",
+            quote     = FALSE,
+            row.names = TRUE,
+            col.names = NA)
+
+########################################
+# Venn diagram of DE genes: FDR < 0.05 # ----
+########################################
+
+# Turn gene IDs of significant DE genes (FDR < 0.05)
 # per time point into vectors
-Pre1.vector <- c(rownames(FDRDE.pre1))
-W1.vector <- c(rownames(FDRDE.W1))
-W2.vector <- c(rownames(FDRDE.W2))
-W10.vector <- c(rownames(FDRDE.W10))
+Pre1_0.05.vector <- c(rownames(FDR_0.05_DE.pre1))
+W1_0.05.vector <- c(rownames(FDR_0.05_DE.W1))
+W2_0.05.vector <- c(rownames(FDR_0.05_DE.W2))
+W10_0.05.vector <- c(rownames(FDR_0.05_DE.W10))
 
 # Turn log files off from VennDiagram package
 futile.logger::flog.threshold(futile.logger::ERROR, name = "VennDiagramLogger")
 
 # Plot Venn diagram for all time points
-venn.plot <- venn.diagram(list(A = Pre1.vector,
-                               B = W10.vector,
-                               C = W1.vector,
-                               D = W2.vector),
-                          filename        = "Venn_DE_FDR.tiff",
+venn.plot <- venn.diagram(list(A = Pre1_0.05.vector,
+                               B = W10_0.05.vector,
+                               C = W1_0.05.vector,
+                               D = W2_0.05.vector),
+                          filename        = "Venn_DE_FDR_0-05.svg",
+                          imagetype       = "svg",
                           col             = "transparent",
                           fill            = c("#ffffcc",
                                               "#225ea8",
@@ -696,11 +833,103 @@ venn.plot <- venn.diagram(list(A = Pre1.vector,
                           compression     = 'lzw',
                           resolution      = 300)
 
-#####################################################################
-# Volcano plots of DE genes that passed FDR correction [p-value > 0.05] # ----
-#              and have an absolute log2-fold change > 1                # 
-#              Comparisons P vs U at each time point                    #
-#########################################################################
+###############################################################
+# Venn diagram of DE genes: FDR < 0.05 and absolute logFC > 1 # ----
+###############################################################
+
+# Turn gene IDs of significant DE genes (FDR < 0.05 and absolute logFC > 1)
+# per time point into vectors
+Pre1.vector <- c(rownames(FDRlogFC_DE.pre1))
+W1.vector <- c(rownames(FDRlogFC_DE.W1))
+W2.vector <- c(rownames(FDRlogFC_DE.W2))
+W10.vector <- c(rownames(FDRlogFC_DE.W10))
+
+# Turn log files off from VennDiagram package
+futile.logger::flog.threshold(futile.logger::ERROR, name = "VennDiagramLogger")
+
+# Plot Venn diagram for all time points
+venn.plot <- venn.diagram(list(A = Pre1.vector,
+                               B = W10.vector,
+                               C = W1.vector,
+                               D = W2.vector),
+                          filename        = "Venn_DE_FDRlogFC.svg",
+                          imagetype       = "svg",
+                          col             = "transparent",
+                          fill            = c("#ffffcc",
+                                              "#225ea8",
+                                              "#a1dab4",
+                                              "#41b6c4"),
+                          alpha           = 0.50,
+                          label.col       = "#003333",
+                          cex             = 10,
+                          fontfamily      = "Raavi",
+                          category.names  = c("-1 wk",
+                                              "+10 wk",
+                                              "+1 wk",
+                                              "+2 wk"),
+                          cat.col         = "black",
+                          cat.cex         = 10,
+                          cat.pos         = c(-11, 11, 0, 0),
+                          cat.dist        = c(0.21, 0.21, 0.1, 0.1),
+                          cat.fontfamily  = "Raavi",
+                          rotation.degree = 360,
+                          margin          = 0,
+                          height          = 85,
+                          width           = 85,
+                          units           = 'cm',
+                          compression     = 'lzw',
+                          resolution      = 300)
+
+########################################
+# Venn diagram of DE genes: FDR < 0.01 # ----
+########################################
+
+# Turn gene IDs of significant DE genes (FDR < 0.01)
+# per time point into vectors
+Pre1_0.01.vector <- c(rownames(FDR_0.01_DE.pre1))
+W1_0.01.vector <- c(rownames(FDR_0.01_DE.W1))
+W2_0.01.vector <- c(rownames(FDR_0.01_DE.W2))
+W10_0.01.vector <- c(rownames(FDR_0.01_DE.W10))
+
+# Turn log files off from VennDiagram package
+futile.logger::flog.threshold(futile.logger::ERROR, name = "VennDiagramLogger")
+
+# Plot Venn diagram for all time points
+venn.plot <- venn.diagram(list(A = Pre1_0.01.vector,
+                               B = W10_0.01.vector,
+                               C = W1_0.01.vector,
+                               D = W2_0.01.vector),
+                          filename        = "Venn_DE_FDR_0-01.svg",
+                          imagetype       = "svg",
+                          col             = "transparent",
+                          fill            = c("#ffffcc",
+                                              "#225ea8",
+                                              "#a1dab4",
+                                              "#41b6c4"),
+                          alpha           = 0.50,
+                          label.col       = "#003333",
+                          cex             = 10,
+                          fontfamily      = "Raavi",
+                          category.names  = c("-1 wk",
+                                              "+10 wk",
+                                              "+1 wk",
+                                              "+2 wk"),
+                          cat.col         = "black",
+                          cat.cex         = 10,
+                          cat.pos         = c(-11, 11, 0, 0),
+                          cat.dist        = c(0.21, 0.21, 0.1, 0.1),
+                          cat.fontfamily  = "Raavi",
+                          rotation.degree = 360,
+                          margin          = 0,
+                          height          = 85,
+                          width           = 85,
+                          units           = 'cm',
+                          compression     = 'lzw',
+                          resolution      = 300)
+
+################################################################
+# Volcano plots of DE genes: FDR < 0.05 and absolute logFC > 1 # ----
+################################################################
 
 # Pre-infection -1wk time point
 dfPre1 <- as.data.frame(DE.pre1,
@@ -719,8 +948,8 @@ volcanoPre1 <- ggplot(data       = dfPre1,
                           colour = threshold)) +
     geom_point(alpha = 0.4,
                size  = 1.75) + 
-    xlim(c(-5, 6)) +
-    ylim(c(-1, 17)) +
+    xlim(c(-6, 6)) +
+    ylim(c(-1, 20)) +
     theme(legend.position   = "right",
           legend.background = element_rect(colour = "black"),
           text              = element_text(size   = 16,
@@ -759,8 +988,8 @@ volcanoW1 <- ggplot(data       = dfW1,
                         colour = threshold)) +
     geom_point(alpha = 0.4,
                size  = 1.75) + 
-    xlim(c(-6, 8)) +
-    ylim(c(-1, 16)) + 
+    xlim(c(-6, 7)) +
+    ylim(c(-1, 19)) + 
     theme(legend.position   = "right",
           legend.background = element_rect(colour = "black"),
           text              = element_text(size   = 16,
@@ -799,8 +1028,8 @@ volcanoW2 <- ggplot(data       = dfW2,
                         colour = threshold)) +
     geom_point(alpha = 0.4,
                size  = 1.75) + 
-    xlim(c(-6, 6)) +
-    ylim(c(-1, 15)) +  
+    xlim(c(-9, 8)) +
+    ylim(c(-1, 27)) +  
     theme(legend.position   = "right",
           legend.background = element_rect(colour = "black"),
           text              = element_text(size   = 16,
@@ -839,8 +1068,8 @@ volcanoW10 <- ggplot(data       = dfW10,
                          colour = threshold)) +
     geom_point(alpha = 0.4,
                size  = 1.75) + 
-    xlim(c(-6, 6)) +
-    ylim(c(-1, 60)) +  
+    xlim(c(-10, 11)) +
+    ylim(c(-1, 65)) +  
     theme(legend.position   = "right",
           legend.background = element_rect(colour = "black"),
           text              = element_text(size   = 16,
@@ -881,9 +1110,315 @@ ggsave("all_volcano_plots.png",
        units     = "cm",
        limitsize = FALSE)
 
-###############################
-# Prepare data for GOexpress  # ----
-###############################
+#########################################
+# Volcano plots of DE genes: FDR < 0.05 # ----
+#########################################
+
+# Pre-infection -1wk time point
+dfPre1_0.05 <- transform(dfPre1,
+                         threshold = as.factor(dfPre1$FDR < 0.05))
+
+volcanoPre1_0.05 <- ggplot(data       = dfPre1_0.05,
+                           aes(x      = logFC,
+                               y      = -log10(FDR),
+                               colour = threshold)) +
+    geom_point(alpha = 0.4,
+               size  = 1.75) + 
+    xlim(c(-6, 6)) +
+    ylim(c(-1, 20)) +
+    theme(legend.position   = "right",
+          legend.background = element_rect(colour = "black"),
+          axis.title        = element_text(size   = 16),
+          text              = element_text(size   = 14,
+                                           family = "Raavi")) +
+    ggtitle("-1 wk") +
+    xlab(expression(paste(log[2], "-fold change"))) +
+    ylab(expression(paste(-log[10], " adjusted p-value"))) +
+    scale_colour_manual("FDR \n< 0.05",
+                        labels = c("False", "True"),
+                        values = c('#41b6c4', '#225ea8'))
+volcanoPre1_0.05
+
+ggsave("volcano_pre1_0.05.svg",
+       plot      = volcanoPre1_0.05,
+       limitsize = FALSE,
+       width     = 20,
+       height    = 20,
+       dpi       = 300,
+       path      = workDir,
+       units     = "cm")
+
+# Post-infection +1wk time point
+dfW1_0.05 <- transform(dfW1,
+                       threshold = as.factor(dfW1$FDR < 0.05))
+
+volcanoW1_0.05 <- ggplot(data       = dfW1_0.05,
+                         aes(x      = logFC,
+                             y      = -log10(FDR),
+                             colour = threshold)) +
+    geom_point(alpha = 0.4,
+               size  = 1.75) + 
+    xlim(c(-6, 7)) +
+    ylim(c(-1, 19)) + 
+    theme(legend.position   = "right",
+          legend.background = element_rect(colour = "black"),
+          axis.title        = element_text(size   = 16),
+          text              = element_text(size   = 14,
+                                           family = "Raavi")) +
+    ggtitle("+1 wk") +
+    xlab(expression(paste(log[2], "-fold change"))) +
+    ylab(expression(paste(-log[10], " adjusted p-value"))) +
+    scale_colour_manual("FDR \n< 0.05",
+                        labels = c("False", "True"),
+                        values = c('#41b6c4', '#225ea8'))
+volcanoW1_0.05
+
+ggsave("volcano_W1_0-05.svg",
+       plot      = volcanoW1_0.05,
+       limitsize = FALSE,
+       width     = 18,
+       height    = 18,
+       dpi       = 300,
+       path      = workDir,
+       units     = "cm")
+
+# Post-infection +2wk time point
+dfW2_0.05 <- transform(dfW2,
+                       threshold = as.factor(dfW2$FDR < 0.05))
+
+volcanoW2_0.05 <- ggplot(data       = dfW2_0.05,
+                         aes(x      = logFC,
+                             y      = -log10(FDR),
+                             colour = threshold)) +
+    geom_point(alpha = 0.4,
+               size  = 1.75) + 
+    xlim(c(-9, 8)) +
+    ylim(c(-1, 27)) +  
+    theme(legend.position   = "right",
+          legend.background = element_rect(colour = "black"),
+          axis.title        = element_text(size   = 16),
+          text              = element_text(size   = 14,
+                                           family = "Raavi")) +
+    ggtitle("+2 wk") +
+    xlab(expression(paste(log[2], "-fold change"))) +
+    ylab(expression(paste(-log[10], " adjusted p-value"))) +
+    scale_colour_manual("FDR \n< 0.05",
+                        labels = c("False", "True"),
+                        values = c('#41b6c4', '#225ea8'))
+volcanoW2_0.05
+
+ggsave("volcano_W2_0-05.svg",
+       plot      = volcanoW2_0.05,
+       limitsize = FALSE,
+       width     = 18,
+       height    = 18,
+       dpi       = 300,
+       path      = workDir,
+       units     = "cm")
+
+# Post-infection +10wk time point
+dfW10_0.05 <- transform(dfW10,
+                        threshold = as.factor(dfW10$FDR < 0.05))
+
+volcanoW10_0.05 <- ggplot(data       = dfW10_0.05,
+                          aes(x      = logFC,
+                              y      = -log10(FDR),
+                              colour = threshold)) +
+    geom_point(alpha = 0.4,
+               size  = 1.75) + 
+    xlim(c(-10, 11)) +
+    ylim(c(-1, 65)) +  
+    theme(legend.position   = "right",
+          legend.background = element_rect(colour = "black"),
+          axis.title        = element_text(size   = 16),
+          text              = element_text(size   = 14,
+                                           family = "Raavi")) +
+    ggtitle("+10 wk") +
+    xlab(expression(paste(log[2], "-fold change"))) +
+    ylab(expression(paste(-log[10], " adjusted p-value"))) +
+    scale_colour_manual("FDR \n< 0.05",
+                        labels = c("False", "True"),
+                        values = c('#41b6c4', '#225ea8'))
+volcanoW10_0.05
+
+ggsave("volcano_W10_0-05.svg",
+       plot      = volcanoW10_0.05,
+       limitsize = FALSE,
+       width     = 20,
+       height    = 22,
+       dpi       = 300,
+       path      = workDir,
+       units     = "cm")
+
+#########################################
+# Volcano plots of DE genes: FDR < 0.01 # ----
+#########################################
+
+# Pre-infection -1wk time point
+dfPre1_0.01 <- transform(dfPre1,
+                         threshold = as.factor(dfPre1$FDR < 0.01))
+
+volcanoPre1_0.01 <- ggplot(data       = dfPre1_0.01,
+                           aes(x      = logFC,
+                               y      = -log10(FDR),
+                               colour = threshold)) +
+    geom_point(alpha = 0.4,
+               size  = 1.75) + 
+    xlim(c(-6, 6)) +
+    ylim(c(-1, 20)) +
+    theme(legend.position   = "right",
+          legend.background = element_rect(colour = "black"),
+          axis.title        = element_text(size   = 16),
+          text              = element_text(size   = 14,
+                                           family = "Raavi")) +
+    ggtitle("-1 wk") +
+    xlab(expression(paste(log[2], "-fold change"))) +
+    ylab(expression(paste(-log[10], " adjusted p-value"))) +
+    scale_colour_manual("FDR \n< 0.01",
+                        labels = c("False", "True"),
+                        values = c('#41b6c4', '#225ea8'))
+volcanoPre1_0.01
+
+ggsave("volcano_pre1_0.01.svg",
+       plot      = volcanoPre1_0.01,
+       limitsize = FALSE,
+       width     = 20,
+       height    = 20,
+       dpi       = 300,
+       path      = workDir,
+       units     = "cm")
+
+# Post-infection +1wk time point
+dfW1_0.01 <- transform(dfW1,
+                       threshold = as.factor(dfW1$FDR < 0.01))
+
+volcanoW1_0.01 <- ggplot(data       = dfW1_0.01,
+                         aes(x      = logFC,
+                             y      = -log10(FDR),
+                             colour = threshold)) +
+    geom_point(alpha = 0.4,
+               size  = 1.75) + 
+    xlim(c(-6, 7)) +
+    ylim(c(-1, 19)) + 
+    theme(legend.position   = "right",
+          legend.background = element_rect(colour = "black"),
+          axis.title        = element_text(size   = 16),
+          text              = element_text(size   = 14,
+                                           family = "Raavi")) +
+    ggtitle("+1 wk") +
+    xlab(expression(paste(log[2], "-fold change"))) +
+    ylab(expression(paste(-log[10], " adjusted p-value"))) +
+    scale_colour_manual("FDR \n< 0.01",
+                        labels = c("False", "True"),
+                        values = c('#41b6c4', '#225ea8'))
+volcanoW1_0.01
+
+ggsave("volcano_W1_0-01.svg",
+       plot      = volcanoW1_0.01,
+       limitsize = FALSE,
+       width     = 18,
+       height    = 18,
+       dpi       = 300,
+       path      = workDir,
+       units     = "cm")
+
+# Post-infection +2wk time point
+dfW2_0.01 <- transform(dfW2,
+                       threshold = as.factor(dfW2$FDR < 0.01))
+
+volcanoW2_0.01 <- ggplot(data       = dfW2_0.01,
+                         aes(x      = logFC,
+                             y      = -log10(FDR),
+                             colour = threshold)) +
+    geom_point(alpha = 0.4,
+               size  = 1.75) + 
+    xlim(c(-9, 8)) +
+    ylim(c(-1, 27)) +  
+    theme(legend.position   = "right",
+          legend.background = element_rect(colour = "black"),
+          axis.title        = element_text(size   = 16),
+          text              = element_text(size   = 14,
+                                           family = "Raavi")) +
+    ggtitle("+2 wk") +
+    xlab(expression(paste(log[2], "-fold change"))) +
+    ylab(expression(paste(-log[10], " adjusted p-value"))) +
+    scale_colour_manual("FDR \n< 0.01",
+                        labels = c("False", "True"),
+                        values = c('#41b6c4', '#225ea8'))
+volcanoW2_0.01
+
+ggsave("volcano_W2_0-01.svg",
+       plot      = volcanoW2_0.01,
+       limitsize = FALSE,
+       width     = 18,
+       height    = 18,
+       dpi       = 300,
+       path      = workDir,
+       units     = "cm")
+
+# Post-infection +10wk time point
+dfW10_0.01 <- transform(dfW10,
+                        threshold = as.factor(dfW10$FDR < 0.01))
+
+volcanoW10_0.01 <- ggplot(data       = dfW10_0.01,
+                          aes(x      = logFC,
+                              y      = -log10(FDR),
+                              colour = threshold)) +
+    geom_point(alpha = 0.4,
+               size  = 1.75) + 
+    xlim(c(-10, 11)) +
+    ylim(c(-1, 65)) +  
+    theme(legend.position   = "right",
+          legend.background = element_rect(colour = "black"),
+          axis.title        = element_text(size   = 16),
+          text              = element_text(size   = 14,
+                                           family = "Raavi")) +
+    ggtitle("+10 wk") +
+    xlab(expression(paste(log[2], "-fold change"))) +
+    ylab(expression(paste(-log[10], " adjusted p-value"))) +
+    scale_colour_manual("FDR \n< 0.01",
+                        labels = c("False", "True"),
+                        values = c('#41b6c4', '#225ea8'))
+volcanoW10_0.01
+
+ggsave("volcano_W10_0-01.svg",
+       plot      = volcanoW10_0.01,
+       limitsize = FALSE,
+       width     = 20,
+       height    = 22,
+       dpi       = 300,
+       path      = workDir,
+       units     = "cm")
+
+######################################################
+# Gene Ontology (GO) enrichment analysis of DE genes # ----
+######################################################
+
+columns(org.Bt.eg.db)
+
+GO.FDRlogFC.pre1 <- FDRlogFC_DE.pre1
+GO.FDRlogFC.pre1$GO.terms <- mapIds(org.Bt.eg.db,
+                                    keys      = rownames(GO.FDRlogFC.pre1),
+                                    column    = "GO",
+                                    keytype   = "ENTREZID",
+                                    multiVals = "first")
+
+head(GO.FDRlogFC.pre1)
+
+
+GO.DE.pre1 <- goana(pre1.lrt,
+                      geneid = rownames(pre1.lrt),
+                      FDR = 0.05,
+                      trend = FALSE,
+                      species.KEGG = "bta")
+
+KEGG.DE.pre1 <- kegga(pre1.lrt,
+                    geneid = rownames(pre1.lrt),
+                    FDR = 0.05,
+                    trend = FALSE,
+                    species.KEGG = "bta")
+head(KEGG.DE.pre1)
+top <- topKEGG(KEGG.DE.pre1)
 
 # Count NAs in ENSEMBL tags of Full_DE_PPDb
 dim(Full_DE_PPDb)
@@ -906,28 +1441,6 @@ dim(DE_PPDb_ensembl)
 head(DE_PPDb_ensembl)
 
 
-######################################################
-# Gene Ontology (GO) enrichment analysis of DE genes # ----
-######################################################
-
-columns(org.Bt.eg.db)
-
-GO.DE.pre1 <- mapIds(org.Bt.eg.db,
-                     keys      = rownames(DE.pre1),
-                     column    = "GENENAME",
-                     keytype   = "ENTREZID",
-                     multiVals = "first")
-
-GO.DE.pre1 <- goana(DE.pre1,
-                 geneid = rownames(DE.pre1),
-                 species = "Bt",
-                 FDR = 0.05,
-                 trend = TRUE)
-
-
-
-
-
 
 
 
@@ -943,6 +1456,14 @@ GO.DE.pre1 <- goana(DE.pre1,
 ####################
 
 save.image(file = "PPDb-RNA-seq_paired_sense.RData")
+
+#######################
+# Save R session info # ----
+#######################
+
+sink("PPDb-RNAseq_paired_sense_R-Session-Info.txt")
+sessionInfo()
+sink()
 
 #######
 # END #

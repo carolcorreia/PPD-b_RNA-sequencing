@@ -1,0 +1,41 @@
+R version 3.3.0 (2016-05-03)
+Platform: x86_64-w64-mingw32/x64 (64-bit)
+Running under: Windows 7 x64 (build 7601) Service Pack 1
+
+locale:
+[1] LC_COLLATE=English_Ireland.1252  LC_CTYPE=English_Ireland.1252   
+[3] LC_MONETARY=English_Ireland.1252 LC_NUMERIC=C                    
+[5] LC_TIME=English_Ireland.1252    
+
+attached base packages:
+ [1] tools     grid      parallel  stats4    stats     graphics  grDevices utils    
+ [9] datasets  methods   base     
+
+other attached packages:
+ [1] VennDiagram_1.6.17     futile.logger_1.4.1    svglite_1.1.0         
+ [4] RColorBrewer_1.1-2     org.Bt.eg.db_3.3.0     MASS_7.3-45           
+ [7] magrittr_1.5           gridExtra_2.2.1        goseq_1.24.0          
+[10] geneLenDataBase_1.8.0  BiasedUrn_1.07         GO.db_3.3.0           
+[13] ggplot2_2.1.0          extrafont_0.17         dplyr_0.4.3           
+[16] plyr_1.8.4             AnnotationFuncs_1.22.0 AnnotationDbi_1.34.3  
+[19] IRanges_2.6.0          S4Vectors_0.10.1       Biobase_2.32.0        
+[22] BiocGenerics_0.18.0    edgeR_3.14.0           limma_3.28.5          
+
+loaded via a namespace (and not attached):
+ [1] SummarizedExperiment_1.2.3 lattice_0.20-33           
+ [3] colorspace_1.2-6           rtracklayer_1.32.0        
+ [5] mgcv_1.8-12                GenomicFeatures_1.24.3    
+ [7] XML_3.98-1.4               DBI_0.4-1                 
+ [9] BiocParallel_1.6.2         gdtools_0.0.7             
+[11] lambda.r_1.1.7             zlibbioc_1.18.0           
+[13] Biostrings_2.40.2          munsell_0.4.3             
+[15] gtable_0.2.0               biomaRt_2.28.0            
+[17] GenomeInfoDb_1.8.2         Rttf2pt1_1.3.4            
+[19] Rcpp_0.12.5                scales_0.4.0              
+[21] XVector_0.12.0             Rsamtools_1.24.0          
+[23] GenomicRanges_1.24.1       bitops_1.0-6              
+[25] RCurl_1.95-4.8             RSQLite_1.0.0             
+[27] futile.options_1.0.0       extrafontdb_1.0           
+[29] Matrix_1.2-6               assertthat_0.1            
+[31] R6_2.1.2                   GenomicAlignments_1.8.1   
+[33] nlme_3.1-128              
