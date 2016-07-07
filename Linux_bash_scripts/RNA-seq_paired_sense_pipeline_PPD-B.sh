@@ -1,13 +1,13 @@
-###############################################################################
-# RNA-seq Time Course: PPD-b stimulated vs unstimulated peripheral blood      #
-# paired-end reads.                                                           #
-#       --- Linux bioinformatics pipeline for known sense genes ---           #
-###############################################################################
+##########################################################################
+# RNA-seq Time Course: PPD-b stimulated vs unstimulated peripheral blood #
+# paired-end reads.                                                      #
+#       --- Linux bioinformatics workflow for known sense genes ---      #
+##########################################################################
 # Based on the pipeline created by Nalpas, N.C. (2014) 
 # DOI badge: http://dx.doi.org/10.5281/zenodo.12474
 # Author of current version (4.0.0): Correia, C.N.
 # DOI badge of current version:
-# Last updated on: 08/06/2016
+# Last updated on: 06/07/2016
 
 ################################
 # Download and files check sum #
@@ -28,7 +28,7 @@
 
 # Create and enter the quality check output directory:
 mkdir -p $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering
-cd $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering
+cd !$
 
 # Run FastQC in one file to see if it's working well:
 fastqc -o $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering \
@@ -98,7 +98,7 @@ nohup perl /usr/local/src/ngsShoRT_2.2/ngsShoRT.pl -t 20 -mode trim -min_rl 100 
 -methods 5adpt_lqr -5a_f Illumina_PE_adapters.txt -5a_mp 90 -5a_del 0 \
 -5a_ins 0 -5a_fmi 100 -5a_axn kr -lqs 20 -lq_p 25 -gzip &
 
-# Create shell scripts to perform filtering of each FASTQ file, keeping the
+# Create bash scripts to perform filtering of each FASTQ file, keeping the
 # sequencing lane information:
 for file in `find /workspace/storage/kmcloughlin/RNAseqTimeCourse/ \
 -name *R1_001.fastq.gz`; \
@@ -240,116 +240,9 @@ done
 # Remove temporary folder and its files:
 rm -rf $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post-filtering/tmp
 
-#####################
-# Merge FASTQ files #
-#####################
-
-# Enter filtered FASTQ files directory:
-cd $HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence
-
-# Create shell script to merge .fastq files from different lanes while keeping
-# mates 1 and 2 in separate files:
-for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence \
--name *_R1_001.fastq.gz`; \
-do file2=`echo $file | perl -p -e 's/(_00.)/_002/g'`; \
-file3=`echo $file | perl -p -e 's/(_00.)/_003/g'`; \
-file4=`echo $file | perl -p -e 's/(_00.)/_004/g'`; \
-file5=`echo $file | perl -p -e 's/(_00.)/_005/g'`; \
-sample=`basename $file | perl -p -e 's/R1(_00.\.fastq.gz)$/R1\.fq.gz/'`; \
-echo "zcat $file $file2 $file3 $file4 $file5 | gzip > ${sample}" \
->> mergeR1.sh; done;
-
-for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence \
--name *_R2_001.fastq.gz`; \
-do file2=`echo $file | perl -p -e 's/(_00.)/_002/g'`; \
-file3=`echo $file | perl -p -e 's/(_00.)/_003/g'`; \
-file4=`echo $file | perl -p -e 's/(_00.)/_004/g'`; \
-file5=`echo $file | perl -p -e 's/(_00.)/_005/g'`; \
-sample=`basename $file | perl -p -e 's/R2(_00.\.fastq.gz)$/R2\.fq.gz/'`; \
-echo "zcat $file $file2 $file3 $file4 $file5 | gzip > ${sample}" \
->> mergeR2.sh; done;
-
-# Split and run all scripts on Stampede:
-split -d -l 15 mergeR1.sh mergeR1.sh.
-for script in `ls mergeR1.sh.*`
-do
-chmod 755 $script
-nohup ./$script > ${script}.nohup &
-done
-
-split -d -l 15 mergeR2.sh mergeR2.sh.
-for script in `ls mergeR2.sh.*`
-do
-chmod 755 $script
-nohup ./$script > ${script}.nohup &
-done
-
-# Check if all files were generated:
-ls | awk '/^trimmed*/' | wc -l
-
-##############################################
-# FastQC quality check of merged FASTQ files #
-##############################################
-
-# Required software is FastQC v0.11.5, consult manual/tutorial
-# for details: http://www.bioinformatics.babraham.ac.uk/projects/fastqc/
-
-# Create and enter the quality check output directory:
-mkdir $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/merged
-cd $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/merged
-
-# Run FastQC in one file to see if it's working well:
-fastqc -o $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/merged \
---noextract --nogroup -t 10 \
-$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/trimmed_A6522_W10_U_R1.fq.gz
-
-### Moved this folder to my laptop using WinSCP
-### and checked the HTML report. It worked fine.
-
-# Create a bash script to perform FastQC quality check on all filtered
-# FASTQ files:
-for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/ \
--name *.fq.gz`; do echo "fastqc --noextract --nogroup -t 1 \
--o $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/merged $file" \
->> fastqc_merged.sh; done;
-
-# Split and run all scripts on Stampede:
-split -d -l 30 fastqc_merged.sh fastqc_merged.sh.
-for script in `ls fastqc_merged.sh.*`
-do
-chmod 755 $script
-nohup ./$script > ${script}.nohup &
-done
-
-# Check if all the files were processed:
-for file in `ls fastqc_merged.sh.0*.nohup`; \
-do more $file | grep "Failed to process file" >> failed_fastqc.txt
-done
-
-# Deleted all the HTML files:
-rm -r *.html
-
-# Check all output from FastQC:
-mkdir $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/merged/tmp
-
-for file in `ls *_fastqc.zip`; do unzip \
-$file -d $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/merged/tmp; \
-done;
-
-for file in \
-`find $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/merged/tmp \
--name summary.txt`; do more $file >> reports_merged.txt; done
-
-for file in \
-`find $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/merged/tmp \
--name fastqc_data.txt`; do head -n 10 $file >> basic_stats_merged.txt; done
-
-# Remove temporary folder and its files:
-rm -rf $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/merged/tmp
-
-#########################################################################
-# STAR alignment of FASTQ files against the Bos taurus reference genome #
-#########################################################################
+##############################################################################
+# Alignment of FASTQ files against the Bos taurus reference genome with STAR #
+##############################################################################
 
 # Required software is STAR 2.5.1b, consult manual/tutorial for details:
 https://github.com/alexdobin/STAR/blob/master/doc/STARmanual.pdf
@@ -385,7 +278,8 @@ nohup STAR --runThreadN 20 --runMode genomeGenerate \
 mkdir $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment
 cd $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment
 
-# Mapping reads from one fastq file to the genome, to check if it works well:
+# Mapping reads from one FASTQ file to the indexed genome,
+# to check if it works well:
 nohup STAR --runMode alignReads --runThreadN 1 --genomeLoad LoadAndRemove \
 --genomeDir /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/STAR-2.5.1b_index/ \
 --readFilesIn \
@@ -445,29 +339,6 @@ grep -c 'Finished successfully' alignment.sh.01.nohup
 for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment \
 -name *Log.final.out`; \
 do perl /home/nnalpas/SVN/star_report_opener.pl -report $file; done;
-
-#####################################################################
-# Compress all unaligned reads in fastq files of individual samples #
-#####################################################################
-
-# Go to working directory:
-cd $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment
-
-# Compress all fastq files of individual samples:
-for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment \
--name *_Unmapped.out.mate1`; \
-do file2=`echo $file | perl -p -e 's/\.mate1/\.mate2/'`; \
-echo "gzip -9 $file" >> unmapped_compression.sh; \
-echo "gzip -9 $file2" >> unmapped_compression.sh; \
-done
-
-# Split and run all scripts on Stampede:
-split -d -l 70 unmapped_compression.sh unmapped_compression.sh.
-for script in `ls unmapped_compression.sh.*`
-do
-chmod 755 $script
-nohup ./$script &
-done
 
 #############################################
 # FastQC quality check of aligned BAM files #
