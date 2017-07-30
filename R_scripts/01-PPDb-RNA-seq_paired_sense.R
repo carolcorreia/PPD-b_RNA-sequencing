@@ -1,151 +1,138 @@
 ##########################################################################
-# RNA-seq Time Course: PPD-b stimulated vs unstimulated peripheral blood #
+# RNA-seq analysis: PPD-b stimulated vs unstimulated peripheral blood    #
 #                           paired-end reads.                            #
 #                                                                        #
 #           --- R workflow for analyses of known sense genes ---         #
 ##########################################################################
 
-# Based on the workflow created by Nalpas, N.C. (2014) 
+# Based on the workflow created by Nalpas, N.C. (2014)
 # DOI badge: http://dx.doi.org/10.5281/zenodo.12474
 
 # Author of current version (4.0.0): Correia, C.N.
 # DOI badge of current version:
-# Last updated on 29/06/2016
+# Last updated on 30/07/2017
 
-# R version 3.3.0 (2016-05-03) -- "Supposedly Educational"
-# Bioconductor version 3.3 (BiocInstaller 1.22.2)
+# R version 3.4.0 (2017-04-21) -- "You Stupid Darkness"
+# Bioconductor version 3.3 (BiocInstaller 1.26.0)
 
-###############################
-# Working directory and RData # ----
-###############################
+##################################
+# 01 Working directory and RData #
+##################################
 
-# Set working directory and load any previously saved data
-setwd("C:/Users/carol/Dropbox/CSF/Animal_Genomics/PPD-b-sti_vs_uns/edgeR/sense")
+# Set working directory
+setwd("/Users/ccorreia/Dropbox/CSF/Animal_Genomics/PPD-B-sti_vs_uns/edgeR_sense")
 getwd()
+
+# Define variables for working and file directories
 workDir <- getwd()
 workDir
+fileDir <- "/Users/ccorreia/Dropbox/CSF/Animal_Genomics/PPD-B-sti_vs_uns/edgeR_sense/PPDbCounts"
+
+# Load previously saved data
 load("PPDb-RNA-seq_paired_sense.RData")
 
-#############################
-# Install required packages # ----
-#############################
+############################################
+# 02 Load and/or install required packages #
+############################################
 
-source("https://bioconductor.org/biocLite.R")
-biocLite("AnnotationFuncs")
-biocLite("Biobase")
-biocLite("edgeR")
-biocLite("geneLenDataBase")
-biocLite("GO.db")
-biocLite("goseq")
-biocLite("limma")
-biocLite("org.Bt.eg.db")
+library(Biobase)
+library(edgeR)
+library(AnnotationFuncs)
+library(org.Bt.eg.db)
+library(MASS)
+library(devtools)
+library(plyr)
+library(tidyverse)
+library(stringr)
+library(magrittr)
+library(ggplot2)
+library(ggrepel)
+library(VennDiagram)
+library(extrafont)
+library(grDevices)
+library(grid)
+library(gridExtra)
+library(svglite)
+library(tools)
 
-install.packages("dplyr")
-install.packages("extrafont")
-install.packages("gdata")
-install.packages("ggplot2")
-install.packages("gridExtra")
-install.packages("magrittr")
-install.packages("MASS")
-install.packages("plyr")
-install.packages("svglite")
-install.packages("VennDiagram")
+# Uncomment functions below to install packages in case you don't have them
 
-##########################
-# Load required packages # ----
-##########################
+# Bioconductor packages
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("AnnotationFuncs")
+#biocLite("edgeR")
+#biocLite("Biobase")
+#biocLite("geneLenDataBase")
+#biocLite("org.Bt.eg.db")
 
-library(AnnotationFuncs)  # Version 1.22.0
-library(Biobase)          # Version 2.32.0
-library(plyr)             # Version 1.8.4
-library(dplyr)            # Version 0.4.3
-library(edgeR)            # Version 3.14.0
-library(extrafont)        # Version 0.17
-library(ggplot2)          # Version 2.1.0
-library(GO.db)            # Version 3.3.0
-library(goseq)            # Version 1.24.0
-library(grDevices)        # Version 3.3.0
-library(grid)             # Version 3.3.0
-library(gridExtra)        # Version 2.2.1    
-library(limma)            # Version 3.28.5
-library(magrittr)         # Version 1.5
-library(MASS)             # Version 7.3-45
-library(org.Bt.eg.db)     # Version 3.3.0
-library(RColorBrewer)     # Version 1.1-2
-library(svglite)          # Version 1.1.0
-library(tools)            # Version 3.3.0
-library(VennDiagram)      # Version 1.6.17
 
-###################
-# Set Ghostscript # ----
-###################
+# CRAN packages
+#install.packages("devtools")
+#install.packages("plyr")
+#install.packages("lubridate")
+#install.packages("tidyverse")
+#install.packages("stringr")
+#install.packages("magrittr")
+#install.packages("ggplot2")
+#install.packages("MASS")
+#install.packages("extrafont")
+#install.packages("gdata")
+#install.packages("ggrepel")
+#install.packages("gridExtra")
+#install.packages("svglite")
+#install.packages("VennDiagram")
 
-# Install GhostScript (version 9.19) for Windows 7 - 64 bit.
-# More information: http://www.ghostscript.com/download/gsdnld.html
-# IMPORTANT: Change installation path in order to avoid whitespace characters
-# in any folder name.
+#########################################
+# 03 Import featureCounts sense counts  #
+#########################################
 
-# Set path to ghostscript executable in laptop
-GSpath <- Sys.setenv(R_GSCMD = "C:/GS/gs9.19/bin/gswin64c.exe")
+# Create a vector of file names
+files <- list.files(path        = fileDir,
+                    pattern     = "^A6",
+                    all.files   = TRUE,
+                    full.names  = FALSE,
+                    recursive   = FALSE,
+                    ignore.case = FALSE)
 
-####################################
-# Import fonts installed in laptop # ----
-####################################
-
-font_import()
-loadfonts(device = "win")
-fonts()
-
-######################################
-# Import featureCounts sense counts  # ----
-######################################
-
-# Create a vector of all files names
-fileDir <- "C:/Users/carol/Dropbox/CSF/Animal_Genomics/PPD-b-sti_vs_uns/edgeR/sense/PPDbCounts"
-files <- list.files(path = fileDir,
-                    pattern         = "^A6", 
-                    all.files       = TRUE,
-                    full.names      = FALSE,
-                    recursive       = FALSE,
-                    ignore.case     = FALSE)
 files
 
-# Reads and merges a set of files containing counts
-Count <- readDGE(path         = fileDir,
-                 files        = files,
-                 header       = TRUE,
-                 comment.char = "#",
-                 columns      = c(1, 7))
-names(Count)
-head(Count$samples)
-head(Count$counts)
+# Create a dataframe with raw counts for all samples
+rawCounts <- readDGE(path         = fileDir,
+                     files        = files,
+                     header       = TRUE,
+                     comment.char = "#",
+                     columns      = c(1, 7))
+names(rawCounts)
+head(rawCounts$samples)
+head(rawCounts$counts)
 
-# Ouptut data
-write.table(x         = Count$samples,
-            file      = "PPDb-RNA-seq_samples.txt", 
-            sep       = "\t",
-            quote     = FALSE,
-            row.names = TRUE,
-            col.names = NA)
-write.table(x         = Count$counts,
-            file      = "PPDb-RNA-seq_sense_rawcounts.txt", 
-            sep       = "\t",
-            quote     = FALSE,
-            row.names = TRUE,
-            col.names = NA)
 
-# After cleaning gene names from rawcounts file, read updated file in
-raw.counts <- read.table(file   = "PPDb-RNA-seq_sense_rawcounts-clean.txt",
-                         header = TRUE)
-names(raw.counts)
-head(raw.counts)
+#################################
+# 04 Clean column and row names # ----
+#################################
 
-# After removing '_sense-counts' from sample names in the first column, and
-# adding condition, batch, animal and time point info; read updated file in
-samples <- read.table(file   = "PPDb-RNA-seq_samples-clean.txt",
-                      header = TRUE)
-names(samples)
-head(samples)
+# Define pattern to be replaced
+str_pattern <- c("_sense-counts", "-")
+
+# Correct column names
+colnames(rawCounts$counts) %<>%
+  str_replace(str_pattern[1], "") %>% str_replace(str_pattern[2], "_")
+
+# Correct row names
+rownames(rawCounts$counts) %<>%
+  str_replace("BGD.*,", "") %>%
+  str_replace(",miRBase:.*", "") %>%
+  str_replace("GeneID:", "")
+
+rownames(rawCounts$samples) %<>%
+  str_replace(str_pattern[1], "") %>% str_replace(str_pattern[2], "_")
+
+
+head(rawCounts$counts)
+head(rawCounts$samples)
+
+
+
 
 ##################################################################
 # Get gene information using the org.Bt.eg.db annotation package # ----
@@ -181,7 +168,7 @@ dim(annotated.counts)
 
 # Ouptut data
 write.table(x         = annotated.counts,
-            file      = "PPDb-RNA-seq_sense_annotated-rawcounts.txt", 
+            file      = "PPDb-RNA-seq_sense_annotated-rawcounts.txt",
             sep       = "\t",
             quote     = FALSE,
             row.names = TRUE,
@@ -198,6 +185,33 @@ gene.annotation <- dplyr::select(annotated.counts,
                                  gene.symbol,
                                  ENSEMBL.tag)
 head(gene.annotation)
+
+#############################
+# 0 Add sample information #
+#############################
+
+# Animal number
+rawCounts$samples$animal <- rownames(rawCounts$samples)
+rawCounts$samples$animal %<>%
+  str_replace("_W.+_F", "") %>%
+  factor()
+
+# Treatment group
+rawCounts$samples$group <- rownames(rawCounts$samples)
+rawCounts$samples$group %<>%
+  str_replace("^A.+_W_1_F", "pre_infection") %>%
+  str_replace("^A.+", "post_infection") %>%
+  factor(levels = c("pre_infection", "post_infection"))
+
+# Time points
+rawCounts$samples$time.point <- rownames(rawCounts$samples)
+Counts$samples$time.point %<>%
+  str_replace("A\\d\\d\\d\\d_", "") %>%
+  str_replace("_F", "") %>%
+  factor(levels = c("W_1", "W1", "W2", "W6", "W10", "W12"))
+
+
+head(rawCounts$samples)
 
 # Create DGElist containing information about condition and annotation
 head(raw.counts)
@@ -242,7 +256,7 @@ png(filename = "Density_raw_PPDb.png", width = 1366, height = 768, units = "px")
 
 plot(x    = density(count_log10[, 1]),
      main = "Density plot of raw counts per gene",
-     lty  = 1, 
+     lty  = 1,
      xlab = "Log10 of raw counts per gene",
      ylab = "Density",
      col  = "black",
@@ -383,7 +397,7 @@ plotMDS(x = PPDb_norm[, grep(pattern = "_W10_", x = colnames(PPDb_norm))])
 dev.off()
 
 ###############################
-# Define experimental factors # ---- 
+# Define experimental factors # ----
 ###############################
 
 head(PPDb_norm$samples)
@@ -464,7 +478,7 @@ PPDb_disp$common.dispersion
 
 # And show its square root, the coefficient of biological variation
 sqrt(PPDb_disp$common.dispersion)
-
+sqrt(PPDb_disp$tagwise.dispersion)
 # Create a matrix of the tagwise dispersion associated with gene information
 Tagwisedisp <- cbind(PPDb_disp$genes, PPDb_disp$tagwise.dispersion)
 head(Tagwisedisp)
@@ -654,7 +668,7 @@ write.table(x         = DE.W10,
 #########################################################
 # Merge all DE call data from the different time points # ----
 #              into a single data frame                 #
-#     [without selection by FDR or absolute logFC]      # 
+#     [without selection by FDR or absolute logFC]      #
 #########################################################
 
 Full_DE_PPDb <- merge(x  = DE.pre1$table,
@@ -947,7 +961,7 @@ volcanoPre1 <- ggplot(data       = dfPre1,
                           y      = -log10(FDR),
                           colour = threshold)) +
     geom_point(alpha = 0.4,
-               size  = 1.75) + 
+               size  = 1.75) +
     xlim(c(-6, 6)) +
     ylim(c(-1, 20)) +
     theme(legend.position   = "right",
@@ -987,9 +1001,9 @@ volcanoW1 <- ggplot(data       = dfW1,
                         y      = -log10(FDR),
                         colour = threshold)) +
     geom_point(alpha = 0.4,
-               size  = 1.75) + 
+               size  = 1.75) +
     xlim(c(-6, 7)) +
-    ylim(c(-1, 19)) + 
+    ylim(c(-1, 19)) +
     theme(legend.position   = "right",
           legend.background = element_rect(colour = "black"),
           text              = element_text(size   = 16,
@@ -1027,9 +1041,9 @@ volcanoW2 <- ggplot(data       = dfW2,
                         y      = -log10(FDR),
                         colour = threshold)) +
     geom_point(alpha = 0.4,
-               size  = 1.75) + 
+               size  = 1.75) +
     xlim(c(-9, 8)) +
-    ylim(c(-1, 27)) +  
+    ylim(c(-1, 27)) +
     theme(legend.position   = "right",
           legend.background = element_rect(colour = "black"),
           text              = element_text(size   = 16,
@@ -1067,9 +1081,9 @@ volcanoW10 <- ggplot(data       = dfW10,
                          y      = -log10(FDR),
                          colour = threshold)) +
     geom_point(alpha = 0.4,
-               size  = 1.75) + 
+               size  = 1.75) +
     xlim(c(-10, 11)) +
-    ylim(c(-1, 65)) +  
+    ylim(c(-1, 65)) +
     theme(legend.position   = "right",
           legend.background = element_rect(colour = "black"),
           text              = element_text(size   = 16,
@@ -1122,24 +1136,32 @@ volcanoPre1_0.05 <- ggplot(data       = dfPre1_0.05,
                            aes(x      = logFC,
                                y      = -log10(FDR),
                                colour = threshold)) +
-    geom_point(alpha = 0.4,
-               size  = 1.75) + 
-    xlim(c(-6, 6)) +
-    ylim(c(-1, 20)) +
-    theme(legend.position   = "right",
-          legend.background = element_rect(colour = "black"),
-          axis.title        = element_text(size   = 16),
-          text              = element_text(size   = 14,
-                                           family = "Raavi")) +
-    ggtitle("-1 wk") +
-    xlab(expression(paste(log[2], "-fold change"))) +
-    ylab(expression(paste(-log[10], " adjusted p-value"))) +
-    scale_colour_manual("FDR \n< 0.05",
-                        labels = c("False", "True"),
-                        values = c('#41b6c4', '#225ea8'))
+                        geom_point(alpha = 0.4, size  = 1.75) +
+                        geom_text_repel(data = subset(dfPre1_0.05,
+                                                      abs(logFC) > 3
+                                                      & FDR < 0.001),
+                                        aes(label = gene.symbol),
+                                        fontface = "bold",
+                                        colour = "#404040",
+                                        size = 4,
+                                        box.padding = unit(0.35, "lines"),
+                                        point.padding = unit(0.3, "lines")) +
+                        xlim(c(-6, 6)) +
+                        ylim(c(-1, 20)) +
+                        theme(legend.position   = "right",
+                              legend.background = element_rect(colour = "black"),
+                              axis.title        = element_text(size   = 16),
+                              text              = element_text(size   = 14,
+                                                               family = "Raavi")) +
+                        ggtitle("-1 wk") +
+                        xlab(expression(paste(log[2], "-fold change"))) +
+                        ylab(expression(paste(-log[10], " FDR"))) +
+                        scale_colour_manual("FDR \n< 0.05",
+                                            labels = c("False", "True"),
+                                            values = c('#41b6c4', '#225ea8'))
 volcanoPre1_0.05
 
-ggsave("volcano_pre1_0.05.svg",
+ggsave("labeled_volcano_pre1_0.05.svg",
        plot      = volcanoPre1_0.05,
        limitsize = FALSE,
        width     = 20,
@@ -1156,24 +1178,32 @@ volcanoW1_0.05 <- ggplot(data       = dfW1_0.05,
                          aes(x      = logFC,
                              y      = -log10(FDR),
                              colour = threshold)) +
-    geom_point(alpha = 0.4,
-               size  = 1.75) + 
-    xlim(c(-6, 7)) +
-    ylim(c(-1, 19)) + 
-    theme(legend.position   = "right",
-          legend.background = element_rect(colour = "black"),
-          axis.title        = element_text(size   = 16),
-          text              = element_text(size   = 14,
-                                           family = "Raavi")) +
-    ggtitle("+1 wk") +
-    xlab(expression(paste(log[2], "-fold change"))) +
-    ylab(expression(paste(-log[10], " adjusted p-value"))) +
-    scale_colour_manual("FDR \n< 0.05",
-                        labels = c("False", "True"),
-                        values = c('#41b6c4', '#225ea8'))
+                    geom_point(alpha = 0.4, size  = 1.75) +
+                    geom_text_repel(data = subset(dfW1_0.05,
+                                                  abs(logFC) > 3
+                                                  & FDR < 0.001),
+                    aes(label = gene.symbol),
+                    fontface = "bold",
+                    colour = "#404040",
+                    size = 4,
+                    box.padding = unit(0.35, "lines"),
+                    point.padding = unit(0.3, "lines")) +
+                    xlim(c(-6, 7)) +
+                    ylim(c(-1, 19)) +
+                    theme(legend.position   = "right",
+                          legend.background = element_rect(colour = "black"),
+                          axis.title        = element_text(size   = 16),
+                          text              = element_text(size   = 14,
+                                                           family = "Raavi")) +
+                    ggtitle("+1 wk") +
+                    xlab(expression(paste(log[2], "-fold change"))) +
+                    ylab(expression(paste(-log[10], " FDR"))) +
+                    scale_colour_manual("FDR \n< 0.05",
+                                        labels = c("False", "True"),
+                                        values = c('#41b6c4', '#225ea8'))
 volcanoW1_0.05
 
-ggsave("volcano_W1_0-05.svg",
+ggsave("labeled_volcano_W1_0-05.svg",
        plot      = volcanoW1_0.05,
        limitsize = FALSE,
        width     = 18,
@@ -1190,24 +1220,32 @@ volcanoW2_0.05 <- ggplot(data       = dfW2_0.05,
                          aes(x      = logFC,
                              y      = -log10(FDR),
                              colour = threshold)) +
-    geom_point(alpha = 0.4,
-               size  = 1.75) + 
-    xlim(c(-9, 8)) +
-    ylim(c(-1, 27)) +  
-    theme(legend.position   = "right",
-          legend.background = element_rect(colour = "black"),
-          axis.title        = element_text(size   = 16),
-          text              = element_text(size   = 14,
-                                           family = "Raavi")) +
-    ggtitle("+2 wk") +
-    xlab(expression(paste(log[2], "-fold change"))) +
-    ylab(expression(paste(-log[10], " adjusted p-value"))) +
-    scale_colour_manual("FDR \n< 0.05",
-                        labels = c("False", "True"),
-                        values = c('#41b6c4', '#225ea8'))
+                    geom_point(alpha = 0.4, size  = 1.75) +
+                    geom_text_repel(data = subset(dfW2_0.05,
+                                                  abs(logFC) > 4
+                                                  & FDR < 0.001),
+                    aes(label = gene.symbol),
+                    fontface = "bold",
+                    colour = "#404040",
+                    size = 4,
+                    box.padding = unit(0.35, "lines"),
+                    point.padding = unit(0.3, "lines")) +
+                    xlim(c(-9, 8)) +
+                    ylim(c(-1, 27)) +
+                    theme(legend.position   = "right",
+                          legend.background = element_rect(colour = "black"),
+                          axis.title        = element_text(size   = 16),
+                          text              = element_text(size   = 14,
+                                                           family = "Raavi")) +
+                    ggtitle("+2 wk") +
+                    xlab(expression(paste(log[2], "-fold change"))) +
+                    ylab(expression(paste(-log[10], " FDR"))) +
+                    scale_colour_manual("FDR \n< 0.05",
+                                        labels = c("False", "True"),
+                                        values = c('#41b6c4', '#225ea8'))
 volcanoW2_0.05
 
-ggsave("volcano_W2_0-05.svg",
+ggsave("labeled_volcano_W2_0-05.svg",
        plot      = volcanoW2_0.05,
        limitsize = FALSE,
        width     = 18,
@@ -1224,24 +1262,32 @@ volcanoW10_0.05 <- ggplot(data       = dfW10_0.05,
                           aes(x      = logFC,
                               y      = -log10(FDR),
                               colour = threshold)) +
-    geom_point(alpha = 0.4,
-               size  = 1.75) + 
-    xlim(c(-10, 11)) +
-    ylim(c(-1, 65)) +  
-    theme(legend.position   = "right",
-          legend.background = element_rect(colour = "black"),
-          axis.title        = element_text(size   = 16),
-          text              = element_text(size   = 14,
-                                           family = "Raavi")) +
-    ggtitle("+10 wk") +
-    xlab(expression(paste(log[2], "-fold change"))) +
-    ylab(expression(paste(-log[10], " adjusted p-value"))) +
-    scale_colour_manual("FDR \n< 0.05",
-                        labels = c("False", "True"),
-                        values = c('#41b6c4', '#225ea8'))
+                    geom_point(alpha = 0.4, size  = 1.75) +
+                    geom_text_repel(data = subset(dfW10_0.05,
+                                                  abs(logFC) > 5
+                                                  & FDR < 0.001),
+                    aes(label = gene.symbol),
+                    fontface = "bold",
+                    colour = "#404040",
+                    size = 4,
+                    box.padding = unit(0.35, "lines"),
+                    point.padding = unit(0.3, "lines")) +
+                    xlim(c(-10, 11)) +
+                    ylim(c(-1, 65)) +
+                    theme(legend.position   = "right",
+                          legend.background = element_rect(colour = "black"),
+                          axis.title        = element_text(size   = 16),
+                          text              = element_text(size   = 14,
+                                                           family = "Raavi")) +
+                    ggtitle("+10 wk") +
+                    xlab(expression(paste(log[2], "-fold change"))) +
+                    ylab(expression(paste(-log[10], " FDR"))) +
+                    scale_colour_manual("FDR \n< 0.05",
+                                        labels = c("False", "True"),
+                                        values = c('#41b6c4', '#225ea8'))
 volcanoW10_0.05
 
-ggsave("volcano_W10_0-05.svg",
+ggsave("labeled_volcano_W10_0-05.svg",
        plot      = volcanoW10_0.05,
        limitsize = FALSE,
        width     = 20,
@@ -1263,7 +1309,7 @@ volcanoPre1_0.01 <- ggplot(data       = dfPre1_0.01,
                                y      = -log10(FDR),
                                colour = threshold)) +
     geom_point(alpha = 0.4,
-               size  = 1.75) + 
+               size  = 1.75) +
     xlim(c(-6, 6)) +
     ylim(c(-1, 20)) +
     theme(legend.position   = "right",
@@ -1297,9 +1343,9 @@ volcanoW1_0.01 <- ggplot(data       = dfW1_0.01,
                              y      = -log10(FDR),
                              colour = threshold)) +
     geom_point(alpha = 0.4,
-               size  = 1.75) + 
+               size  = 1.75) +
     xlim(c(-6, 7)) +
-    ylim(c(-1, 19)) + 
+    ylim(c(-1, 19)) +
     theme(legend.position   = "right",
           legend.background = element_rect(colour = "black"),
           axis.title        = element_text(size   = 16),
@@ -1331,9 +1377,9 @@ volcanoW2_0.01 <- ggplot(data       = dfW2_0.01,
                              y      = -log10(FDR),
                              colour = threshold)) +
     geom_point(alpha = 0.4,
-               size  = 1.75) + 
+               size  = 1.75) +
     xlim(c(-9, 8)) +
-    ylim(c(-1, 27)) +  
+    ylim(c(-1, 27)) +
     theme(legend.position   = "right",
           legend.background = element_rect(colour = "black"),
           axis.title        = element_text(size   = 16),
@@ -1365,9 +1411,9 @@ volcanoW10_0.01 <- ggplot(data       = dfW10_0.01,
                               y      = -log10(FDR),
                               colour = threshold)) +
     geom_point(alpha = 0.4,
-               size  = 1.75) + 
+               size  = 1.75) +
     xlim(c(-10, 11)) +
-    ylim(c(-1, 65)) +  
+    ylim(c(-1, 65)) +
     theme(legend.position   = "right",
           legend.background = element_rect(colour = "black"),
           axis.title        = element_text(size   = 16),
@@ -1427,7 +1473,7 @@ sum(is.na(Full_DE_PPDb$ENSEMBL.tag))
 # Transform rownames into first column because dplyr will discard rownames
 # later on and we want to keep this information
 full.DE <- Full_DE_PPDb
-full.DE <- cbind(RefSeqID = as.numeric(rownames(full.DE)), full.DE) 
+full.DE <- cbind(RefSeqID = as.numeric(rownames(full.DE)), full.DE)
 head(full.DE)
 
 # Subset rows with unknown ENSEMBL tag
