@@ -3,11 +3,12 @@
 # paired-end reads.                                                      #
 #       --- Linux bioinformatics workflow for known sense genes ---      #
 ##########################################################################
+
 # Based on the pipeline created by Nalpas, N.C. (2014) 
 # DOI badge: http://dx.doi.org/10.5281/zenodo.12474
 # Author of current version (4.0.0): Correia, C.N.
 # DOI badge of current version:
-# Last updated on: 06/07/2016
+# Last updated on: 30/07/2017
 
 ################################
 # Download and files check sum #
@@ -35,7 +36,7 @@ fastqc -o $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering \
 --noextract --nogroup -t 2 \
 /workspace/storage/kmcloughlin/RNAseqTimeCourse/A6511_W10_P_R1_001.fastq.gz
 
-### Moved this folder to my laptop using WinSCP
+### Moved this folder to my laptop via SCP
 ### and checked the HTML report. It worked fine.
 
 # Create a bash script to perform FastQC quality check on all fastq.gz files:
@@ -195,7 +196,7 @@ fastqc -o $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post-filtering \
 --noextract --nogroup -t 10 \
 $HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6644_W6_F_001/trimmed_A6644_W6_F_R1_001.fastq.gz
 
-### Moved this folder to my laptop using WinSCP
+### Moved this folder to my laptop via SCP
 ### and checked the HTML report. It worked fine.
 
 # Create a bash script to perform FastQC quality check on all filtered
@@ -247,15 +248,19 @@ rm -rf $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post-filtering/tmp
 # Required software is STAR 2.5.1b, consult manual/tutorial for details:
 https://github.com/alexdobin/STAR/blob/master/doc/STARmanual.pdf
 
+# NCBI changed the location of several genome and annotation files in their FTP
+# server on December 2016, which means that the original links listed below
+# do not work anymore. The same files used in this analysis can now be found at:
+# ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/003/055/GCF_000003055.6_Bos_taurus_UMD_3.1.1
+
 # Download Bos taurus reference genome, version UMD3.1.1 from NCBI:
 mkdir /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/source_file
 cd /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/source_file
-nohup wget -o logfile -r -nd \
-"ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF_000003055.6_Bos_taurus_UMD_3.1.1/GCF_000003055.6_Bos_taurus_UMD_3.1.1_genomic.fna.gz" \
-&
+nohup wget nohup wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/003/055/GCF_000003055.6_Bos_taurus_UMD_3.1.1/GCF_000003055.6_Bos_taurus_UMD_3.1.1_genomic.fna.gz &
+
 gunzip GCF_000003055.6_Bos_taurus_UMD_3.1.1_genomic.fna.gz
 
-# Download annotation file for UMD3.1.1 NCBI Bos taurus Annotation Release 105:
+# Download annotation file for UMD3.1.1 NCBI Bos taurus genomic annotation (GCF_000003055.6):
 mkdir /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/annotation_file
 cd /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/annotation_file
 wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF_000003055.6_Bos_taurus_UMD_3.1.1/GCF_000003055.6_Bos_taurus_UMD_3.1.1_genomic.gff.gz
@@ -399,7 +404,7 @@ rm -r tmp/
 # Summarisation of gene counts with featureCounts for sense genes #
 ###################################################################
 
-# Required package is featureCounts, which is part of Subread 1.5.0-p1 software,
+# Required package is featureCounts, which is part of Subread 1.5.1 software,
 # consult manual for details:
 # http://bioinf.wehi.edu.au/subread-package/SubreadUsersGuide.pdf
 
@@ -415,7 +420,7 @@ featureCounts -a \
 $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment/A6511_W10_F/A6511_W10_F_Aligned.out.bam
 
 # Create a bash script to run featureCounts on BAM file containing multihits and
-# uniquely mapped reads using the reversely stranded parameter:
+# uniquely mapped reads using the stranded parameter:
 for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment \
 -name *_Aligned.out.bam`; \
 do sample=`basename $file | perl -p -e 's/_Aligned.out.bam//'`; \
@@ -437,30 +442,6 @@ done
 # Check if all files were processed:
 grep -c 'Read assignment finished.' sense_count.sh.00.nohup
 grep -c 'Read assignment finished.' sense_count.sh.01.nohup
-
-
-############################
-
-have to rename
-
-
-# Rename .featureCounts files:
-for folder in \
-`ls $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/A6*`; \
-do file2=`echo $folder`; \
-echo "cd $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/$file2; \
-mv ./*_Aligned.out.sam.featureCounts ./${file2}_Aligned.sam.featureCounts" >> \
-rename.sh; done;
-
-
-for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/ \
--name *.featureCounts`; \
-do outfile=`basename $file | perl -p -e \
-'s/home.ccorreia.scratch.PPDbRNAseqTimeCourse.STAR-2.5.1b_alignment.A*_*_*.//'`; \
-mv $file $outfile >> rename.sh; done
-
-
-#####################################
 
 
 # Create bash script to merge stats info from .featureCounts from all samples
@@ -490,7 +471,7 @@ for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/ 
 -t $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/tmp; \
 done
 
-# Transfer all files from tmp to laptop, using WinSCP, then remove tmp folder:
+# Transfer all files from tmp to laptop, then remove tmp folder:
 rm -r tmp
 
 
@@ -499,7 +480,8 @@ rm -r tmp
 ########################################
 
 # Subsequent sense genes analyses were performed using the R statistical
-# and the edgeR package. Please refer to file: PPDb-RNA-seq_paired_sense.R
+# software and the edgeR package.
+# Please go to file: 01-PPDb-RNA-seq_paired_sense.R
 
 
 
