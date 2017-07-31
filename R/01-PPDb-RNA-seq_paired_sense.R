@@ -10,7 +10,7 @@
 
 # Author of current version (4.0.0): Correia, C.N.
 # DOI badge of current version:
-# Last updated on 30/07/2017
+# Last updated on 31/07/2017
 
 # R version 3.4.0 (2017-04-21) -- "You Stupid Darkness"
 # Bioconductor version 3.3 (BiocInstaller 1.26.0)
@@ -45,7 +45,9 @@ library(plyr)
 library(tidyverse)
 library(stringr)
 library(magrittr)
+library(biobroom)
 library(ggplot2)
+library(ggjoy)
 library(ggrepel)
 library(VennDiagram)
 library(extrafont)
@@ -78,6 +80,7 @@ library(tools)
 #install.packages("extrafont")
 #install.packages("gdata")
 #install.packages("ggrepel")
+#install.packages("ggjoy")
 #install.packages("gridExtra")
 #install.packages("svglite")
 #install.packages("VennDiagram")
@@ -108,7 +111,7 @@ head(rawCounts$counts)
 
 
 #################################
-# 04 Clean column and row names # ----
+# 04 Clean column and row names #
 #################################
 
 # Define pattern to be replaced
@@ -131,96 +134,91 @@ rownames(rawCounts$samples) %<>%
 head(rawCounts$counts)
 head(rawCounts$samples)
 
+#############################
+# 05 Add sample information #
+#############################
+
+# Treatment group (infection)
+rawCounts$samples$group <- rownames(rawCounts$samples)
+rawCounts$samples$group %<>%
+  str_replace("^A.+_W_1_\\w", "pre_infection") %>%
+  str_replace("^A.+", "post_infection") %>%
+  factor(levels = c("pre_infection", "post_infection"))
+
+# Animal ID
+rawCounts$samples$animal <- rownames(rawCounts$samples)
+rawCounts$samples$animal %<>%
+  str_replace("_W.+_\\w", "") %>%
+  factor()
+
+# Time points
+rawCounts$samples$time.point <- rownames(rawCounts$samples)
+rawCounts$samples$time.point %<>%
+  str_replace("A\\d\\d\\d\\d_", "") %>%
+  str_replace("_(P|U)", "") %>%
+  factor(levels = c("W_1", "W1", "W2", "W6", "W10", "W12"))
+
+# PPD-b stimulation
+rawCounts$samples$ppdb_stimulation <- rownames(rawCounts$samples)
+rawCounts$samples$ppdb_stimulation %<>%
+  str_replace("A\\d\\d\\d\\d_.+_", "") %>%
+  str_replace("P", "PPDb_stimulated") %>%
+  str_replace("U", "Non_stimulated") %>%
+  factor(levels = c("Non_stimulated", "PPDb_stimulated"))
 
 
+head(rawCounts$samples)
 
-##################################################################
-# Get gene information using the org.Bt.eg.db annotation package # ----
-##################################################################
+#################################
+# 06 Get gene names and symbols #
+#################################
 
 # Create annotation table with counts information
-annotated.counts <- raw.counts
+annotCounts <- as.data.frame(rawCounts$counts)
 columns(org.Bt.eg.db)
 
-# Get gene names from NCBI gene identifiers
-annotated.counts$gene.name <- mapIds(org.Bt.eg.db,
-                                     keys      = rownames(annotated.counts),
-                                     column    = "GENENAME",
-                                     keytype   = "ENTREZID",
-                                     multiVals = "first")
+# Retrieve gene names using NCBI Ref Seq gene identifiers
+annotCounts$gene_name <- mapIds(org.Bt.eg.db,
+                                keys      = rownames(annotCounts),
+                                column    = "GENENAME",
+                                keytype   = "ENTREZID",
+                                multiVals = "first")
 
-# Get gene symbols from NCBI gene identifiers
-annotated.counts$gene.symbol <- mapIds(org.Bt.eg.db,
-                                       keys      = rownames(annotated.counts),
-                                       column    = "SYMBOL",
-                                       keytype   = "ENTREZID",
-                                       multiVals = "first")
+# Retrieve gene symbols using NCBI Ref Seq gene identifiers
+annotCounts$gene_symbol <- mapIds(org.Bt.eg.db,
+                                  keys      = rownames(annotCounts),
+                                  column    = "SYMBOL",
+                                  keytype   = "ENTREZID",
+                                  multiVals = "first")
 
-# Get ENSEMBL gene ids from NCBI gene identifiers
-annotated.counts$ENSEMBL.tag <- mapIds(org.Bt.eg.db,
-                                       keys      = rownames(annotated.counts),
-                                       column    = "ENSEMBL",
-                                       keytype   = "ENTREZID",
-                                       multiVals = "first")
-
-head(annotated.counts)
-dim(annotated.counts)
+head(annotCounts)
+dim(annotCounts)
 
 # Ouptut data
-write.table(x         = annotated.counts,
-            file      = "PPDb-RNA-seq_sense_annotated-rawcounts.txt",
+write.table(x         = annotCounts,
+            file      = "PPDb-RNA-seq_sense_annot-rawcounts.txt",
             sep       = "\t",
             quote     = FALSE,
             row.names = TRUE,
             col.names = NA)
 
-##########################################
-# Create a DGElist of all samples counts # ----
-##########################################
+#####################
+# 07 Create DGElist #
+#####################
 
-# Select annotation gene annotation for DGElist
-head(annotated.counts)
-gene.annotation <- dplyr::select(annotated.counts,
-                                 gene.name,
-                                 gene.symbol,
-                                 ENSEMBL.tag)
-head(gene.annotation)
+# Assign required information to variables
+gene_annotation <- dplyr::select(annotCounts,
+                                 gene_name,
+                                 gene_symbol)
 
-#############################
-# 0 Add sample information #
-#############################
+raw_counts <- as.data.frame(rawCounts$counts)
 
-# Animal number
-rawCounts$samples$animal <- rownames(rawCounts$samples)
-rawCounts$samples$animal %<>%
-  str_replace("_W.+_F", "") %>%
-  factor()
+group <- rawCounts$samples$group
 
-# Treatment group
-rawCounts$samples$group <- rownames(rawCounts$samples)
-rawCounts$samples$group %<>%
-  str_replace("^A.+_W_1_F", "pre_infection") %>%
-  str_replace("^A.+", "post_infection") %>%
-  factor(levels = c("pre_infection", "post_infection"))
-
-# Time points
-rawCounts$samples$time.point <- rownames(rawCounts$samples)
-Counts$samples$time.point %<>%
-  str_replace("A\\d\\d\\d\\d_", "") %>%
-  str_replace("_F", "") %>%
-  factor(levels = c("W_1", "W1", "W2", "W6", "W10", "W12"))
-
-
-head(rawCounts$samples)
-
-# Create DGElist containing information about condition and annotation
-head(raw.counts)
-head(samples)
-condition <- factor(relevel(samples$condition, ref = "U"))
-
-PPDb_dgelist <- DGEList(counts       = raw.counts,
-                        group        = condition,
-                        genes        = gene.annotation,
+# Use newly assigned variables to create DGElist
+PPDb_dgelist <- DGEList(counts       = raw_counts,
+                        group        = group,
+                        genes        = gene_annotation,
                         lib.size     = NULL,
                         norm.factors = NULL,
                         remove.zeros = FALSE)
@@ -231,49 +229,44 @@ head(PPDb_dgelist$counts)
 head(PPDb_dgelist$samples)
 head(PPDb_dgelist$genes)
 
-# Add animal, batch and time point information to DGElist
-samples.info <- dplyr::select(samples, animal, batch, time.point)
-PPDb_dgelist$samples <- merge(x  = PPDb_dgelist$samples,
-                              y  = samples.info,
-                              by = "row.names")
+# Include addtional experimental information into DGElist
+identical(rownames(rawCounts$samples), rownames(PPDb_dgelist$samples))
 
-# Correct row names
-rownames(PPDb_dgelist$samples) <- PPDb_dgelist$samples[, 1]
-PPDb_dgelist$samples <- PPDb_dgelist$samples[, -1]
+PPDb_dgelist$samples$animal <- rawCounts$samples$animal
+PPDb_dgelist$samples$time.point <- rawCounts$samples$time.point
+PPDb_dgelist$samples$ppdb_stimulation <- rawCounts$samples$ppdb_stimulation
+
 head(PPDb_dgelist$samples)
 
-#####################################################################
-# Quality check of libraries by plotting density of raw gene counts # ----
-#####################################################################
 
-# Log10 transform the count data for better visualization
-count_log10 <- log10(x = (PPDb_dgelist$counts[ , 1 : ncol(PPDb_dgelist$counts)]
-                          + 1))
-summary(count_log10)
+################################################
+# 08 Density plot: raw gene counts per library #
+################################################
 
-# Plot density of raw counts for all libraries
-png(filename = "Density_raw_PPDb.png", width = 1366, height = 768, units = "px")
-
-plot(x    = density(count_log10[, 1]),
-     main = "Density plot of raw counts per gene",
-     lty  = 1,
-     xlab = "Log10 of raw counts per gene",
-     ylab = "Density",
-     col  = "black",
-     ylim = c(0.0,1.25))
+# Tidy DGElist and plot data
+PPDb_dgelist %>%
+  tidy() %>%
+  ggplot() +
+      geom_density(aes(x     = log10(count + 1),
+                       group = sample)) +
+      theme_bw() +
+      ylab("Density of raw gene counts per sample") +
+      xlab(expression(paste(log[10], "(counts + 1)"))) -> density_raw
 
 
-for (i in 2 : ncol(count_log10)) {
-    lines(density(count_log10[, i]),
-          lty = 1,
-          col = "black")
-}
+density_raw
 
-dev.off()
+# Export high quality image
+ggsave("PPDb-density_plot_raw_counts.png",
+       plot      = density_raw,
+       device    = "png",
+       limitsize = FALSE,
+       dpi       = 600,
+       path      = workDir)
 
-##############################################
-# Filtering of zero and lowly expressed tags # ----
-##############################################
+###########################################
+# 09 Remove zero and lowly expressed tags #
+###########################################
 
 # Filter non expressed tags (all genes that have zero counts in all samples)
 PPDb_no_zeros <- PPDb_dgelist[rowSums(PPDb_dgelist$counts) > 0, ]
@@ -281,66 +274,82 @@ dim(PPDb_no_zeros$counts)
 head(PPDb_no_zeros$counts)
 colnames(PPDb_no_zeros$counts)
 
-# Filter lowly expressed tags, retaining only tags with at least
-# 1 count per million in 10 or more libraries
+# Filter lowly expressed tags, retaining only tags with
+# more than 1 count per million in 10 or more libraries
 # (10 libraries correspond to 10 biological replicates and represent
-# one stimulated [P] or unstimulated [U] group at any given time point)
+# one PPDb-stimulated [P] or Non-stimulated [U] group at any given time point)
 PPDb_filt <- PPDb_no_zeros[rowSums(cpm(PPDb_no_zeros) > 1) >= 10, ]
 dim(PPDb_filt$counts)
 head(PPDb_filt$counts)
 
 # Output file of filtered counts
 write.table(x         = PPDb_filt$counts,
-            file      = "PPDb_filt_rawcounts.txt",
+            file      = "PPDb_filt_counts.txt",
             sep       = "\t",
             quote     = FALSE,
             row.names = TRUE,
             col.names = NA)
 
-# Recompute the library size
+
+##############################
+# 10 Recompute library sizes #
+##############################
+
 PPDb_filt$samples$lib.size <- colSums(PPDb_filt$counts)
 head(PPDb_filt$samples)
 head(PPDb_dgelist$samples)
 
-########################################################
-# Normalization of data using Trimmed Mean of M-values # ----
-#    (based on RNA composition between libraries)      #
-########################################################
 
-# Calculate normalisation factor for our DGElist.
-# With edgeR, counts are not transformed in any way after normalization,
-# instead normalization will modify library size.
+###########################################################################
+# 11 Calculate normalisation factors using Trimmed Mean of M-values (TMM) #
+###########################################################################
+
+# With edgeR, counts are not transformed in any way after normalisation
 PPDb_norm <- calcNormFactors(PPDb_filt, method = "TMM")
 head(PPDb_norm$samples)
 
-#####################################################################
-# Quality check of filtered libraries by plotting density of counts # ----
-#####################################################################
+###########################################################
+# 12 Joyplot: density of filtered gene counts per library #
+###########################################################
 
-# Log10 transform the filtered count data for better visualization
-count_filt_log10 <- log10(PPDb_norm$counts[, 1 : ncol(PPDb_norm$counts)] + 1)
+# Tidy DGElist for easier plotting
+PPDb_filt %>%
+  tidy() %>%
+  dplyr::mutate(ppdb_stimulation = sample, labels = sample) -> tidy_PPDbFilt
 
-# Plot density of count for all libraries
-png(filename = "Density_PPDb_post_filter.png",
-    width    = 1366,
-    height   = 768,
-    units    = "px")
+# Correct PPDb_stimulation info
+tidy_PPDbFilt$ppdb_stimulation %<>%
+  stringr::str_replace("A\\d\\d\\d\\d_.+_", "") %>%
+  stringr::str_replace("P", "PPDb_stimulated") %>%
+  stringr::str_replace("U", "Non_stimulated") %>%
+  factor(levels = c("Non_stimulated", "PPDb_stimulated"))
 
-plot(density(count_filt_log10[, 1]),
-     main = "Density plot of count per gene post filtering",
-     lty  = 1,
-     xlab = "Log10 of count per gene",
-     ylab = "Density",
-     col  = "black",
-     ylim = c(0.0,0.6))
+# Correct labels info
+tidy_PPDbFilt$labels %<>%
+  stringr::str_replace("A", "") %>%
+  stringr::str_replace("_(P|U)", "")
 
-for (i in 2 : ncol(count_filt_log10)) {
-    lines(density(count_filt_log10[, i]),
-          lty = 1,
-          col = "black")
-}
+# Plot data
+ggplot(tidy_PPDbFilt, aes(x = log10(count + 1),
+                          y = labels)) +
+    geom_joy(aes(fill = ppdb_stimulation), alpha = 0.5) +
+    scale_fill_manual("Treatment", values = c("#91bfdb", "#fc8d59")) +
+    theme_bw() +
+    facet_grid(. ~ ppdb_stimulation) +
+    ylab("Density of gene counts (CPM > 1) per sample") +
+    xlab(expression(paste(log[10], "(counts + 1)"))) -> density_filt
 
-dev.off()
+
+density_filt
+
+# Export high quality image
+ggsave("PPDb-density_plot_filt_counts.png",
+       plot      = density_filt,
+       device    = "png",
+       limitsize = FALSE,
+       dpi       = 600,
+       path      = workDir)
+
 
 #############################################################
 # Exploratory data analysis: Multidimensional scaling plots # ----

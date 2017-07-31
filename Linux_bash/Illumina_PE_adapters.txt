@@ -1,0 +1,12 @@
+# This is a comment. Comments start with pound signs
+
+
+#----------------------- ADAPTER SEQUENCES -------------------------
+# Read_1 or the Single read adapters (you can copy-paste more of these lines if you want)
+r1	AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC 	+0  -0
+
+# Read_2 adapters -- USE ONLY FOR PE FILES (you can copy-paste more of these lines if you want)
+r2	AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA		+0	-0
+
+#--------------------------------------------------------------------
+
