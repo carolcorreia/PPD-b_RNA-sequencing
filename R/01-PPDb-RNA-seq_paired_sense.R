@@ -10,7 +10,7 @@
 
 # Author of current version (4.0.0): Correia, C.N.
 # DOI badge of current version:
-# Last updated on 31/07/2017
+# Last updated on 01/08/2017
 
 # R version 3.4.0 (2017-04-21) -- "You Stupid Darkness"
 # Bioconductor version 3.3 (BiocInstaller 1.26.0)
@@ -308,60 +308,80 @@ head(PPDb_dgelist$samples)
 PPDb_norm <- calcNormFactors(PPDb_filt, method = "TMM")
 head(PPDb_norm$samples)
 
-###########################################################
-# 12 Joyplot: density of filtered gene counts per library #
-###########################################################
+##########################################################
+# 12 Tidy DGElist for exploratory data analysis plotting #
+##########################################################
 
-# Tidy DGElist for easier plotting
-PPDb_filt %>%
+PPDb_norm %>%
   tidy() %>%
-  dplyr::mutate(ppdb_stimulation = sample, labels = sample) -> tidy_PPDbFilt
+  dplyr::mutate(ppdb_stimulation = sample, labels = sample) -> tidy_PPDbNorm
 
-# Correct PPDb_stimulation info
-tidy_PPDbFilt$ppdb_stimulation %<>%
+# Add PPDb_stimulation info
+tidy_PPDbNorm$ppdb_stimulation %<>%
   stringr::str_replace("A\\d\\d\\d\\d_.+_", "") %>%
   stringr::str_replace("P", "PPDb_stimulated") %>%
   stringr::str_replace("U", "Non_stimulated") %>%
   factor(levels = c("Non_stimulated", "PPDb_stimulated"))
 
-# Correct labels info
-tidy_PPDbFilt$labels %<>%
+# Add plotting labels
+tidy_PPDbNorm$labels %<>%
   stringr::str_replace("A", "") %>%
-  stringr::str_replace("_(P|U)", "")
+  stringr::str_replace("_(P|U)", "") %>%
+  stringr::str_replace("W_1", "W-1") %>%
+  factor(levels = c("6511_W-1", "6511_W1", "6511_W2", "6511_W10",
+                    "6514_W-1", "6514_W1", "6514_W2", "6514_W10",
+                    "6520_W-1", "6520_W1", "6520_W2", "6520_W10",
+                    "6522_W-1", "6522_W1", "6522_W2", "6522_W10",
+                    "6526_W-1", "6526_W1", "6526_W2", "6526_W10",
+                    "6635_W-1", "6635_W1", "6635_W2", "6635_W10",
+                    "6636_W-1", "6636_W1", "6636_W2", "6636_W10",
+                    "6637_W-1", "6637_W1", "6637_W2", "6637_W10",
+                    "6644_W-1", "6644_W1", "6644_W2", "6644_W10",
+                    "6698_W-1", "6698_W1", "6698_W2", "6698_W10"))
 
-# Plot data
-ggplot(tidy_PPDbFilt, aes(x = log10(count + 1),
+###########################################################
+# 13 Joyplot: density of filtered gene counts per library #
+###########################################################
+
+ggplot(tidy_PPDbNorm, aes(x = log10(count + 1),
                           y = labels)) +
+    scale_y_discrete(limits = rev(levels(tidy_PPDbNorm$labels))) +
     geom_joy(aes(fill = ppdb_stimulation), alpha = 0.5) +
     scale_fill_manual("Treatment", values = c("#91bfdb", "#fc8d59")) +
     theme_bw() +
     facet_grid(. ~ ppdb_stimulation) +
     ylab("Density of gene counts (CPM > 1) per sample") +
-    xlab(expression(paste(log[10], "(counts + 1)"))) -> density_filt
+    xlab(expression(paste(log[10], "(counts + 1)"))) -> density_norm
 
 
-density_filt
+density_norm
 
 # Export high quality image
-ggsave("PPDb-density_plot_filt_counts.png",
-       plot      = density_filt,
-       device    = "png",
+ggsave("PPDb-density_plot_filt_counts.svg",
+       plot      = density_norm,
+       device    = "svg",
        limitsize = FALSE,
        dpi       = 600,
        path      = workDir)
 
+#########################################
+# 14 MDS #
+#########################################
 
-#############################################################
-# Exploratory data analysis: Multidimensional scaling plots # ----
-#############################################################
+
 
 # Plot MDS of all samples
+test<-plotMDS.DGEList(x = PPDb_norm, method = "bcv", plot = FALSE)
+ggplot(as.data.frame(test), aes(x = x, y = y)) +
+  geom_point(aes(colour = names(test$x)))
+
+
 png(filename = "MDS_all_samples.png",
     width    = 1366,
     height   = 768,
     units    = "px")
 
-plotMDS(PPDb_norm)
+BiocGenerics::plotPCA(t(PPDb_norm))
 
 dev.off()
 
