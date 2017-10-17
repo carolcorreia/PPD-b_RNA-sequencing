@@ -771,7 +771,7 @@ venn.plot <- venn.diagram(list(A = Wm1.vector,
 # 28 DE genes common to all contrasts #
 #######################################
 
-# Join commons genes into single data frame
+# Join common genes into single data frame
 Wm1_FDR_001 %>%
   dplyr::inner_join(W1_FDR_001,
                     by = "EntrezID",

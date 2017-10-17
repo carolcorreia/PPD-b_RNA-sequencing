@@ -315,11 +315,13 @@ ggsave("grid_waffle.pdf",
        units     = "in")
 
 ##########################
-# 17 Save R session info # ----
+# 17 Save R session info #
 ##########################
 
 devtools::session_info()
 
-#######
-# END #
-#######
+###########################
+# Proceed to Part 4: tmod #
+###########################
+
+# File: 04-PPDb-RNA-seq_tmod.R
