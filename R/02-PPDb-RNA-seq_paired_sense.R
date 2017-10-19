@@ -11,7 +11,7 @@
 
 # Author of current version (4.0.0): Correia, C.N.
 # DOI badge of current version:
-# Last updated on 11/10/2017
+# Last updated on 19/10/2017
 
 ##################################
 # 14 Working directory and RData #
@@ -51,6 +51,7 @@ library(Cairo)
 library(cowplot)
 library(extrafont)
 library(VennDiagram)
+library(treemap)
 
 # Uncomment functions below to install packages in case you don't have them
 
@@ -58,6 +59,7 @@ library(VennDiagram)
 #install.packages("extrafont")
 #install.packages("statmod")
 #install.packages("VennDiagram")
+#install.packages("treemap")
 
 ###################
 # 16 Set up fonts #
@@ -155,9 +157,10 @@ ggsave("PPDb-density-filt.pdf",
 ####################################
 
 ### Plot MDS of Week -1 time point
-mds_W_1 <- plotMDS(x = PPDb_norm[ , grep(pattern = "_W.1_",
-                                         x = colnames(PPDb_norm))],
-                   plot = FALSE)
+mds_W_1 <- plotMDS.DGEList(x = PPDb_norm[ , grep(pattern = "_W.1_",
+                                                 x = colnames(PPDb_norm))],
+                           plot = FALSE,
+                           method = "bcv")
 
 names(mds_W_1)
 W_1_coord <- mds_W_1$cmdscale.out # Get coords to plot with ggplot2
@@ -194,17 +197,18 @@ MDS_W_1 <- ggplot(W_1_coord) +
   geom_text_repel(aes(x = x, y = y, label = animal)) +
   theme_bw(base_size = 12, base_family = "Calibri") +
   ggtitle("-1 wk") +
-  xlab("Dimension 1") +
-  ylab("Dimension 2")
+  xlab("BCV distance 1") +
+  ylab("BCV distance 2")
 
 # Check W-1 MDS plot
 MDS_W_1
 
 
 ### Plot MDS of Week +1 time point
-mds_W1 <- plotMDS(x = PPDb_norm[, grep(pattern = "_W1_",
-                             x = colnames(PPDb_norm))],
-                  plot = FALSE)
+mds_W1 <- plotMDS.DGEList(x = PPDb_norm[, grep(pattern = "_W1_",
+                                               x = colnames(PPDb_norm))],
+                          plot = FALSE,
+                          method = "bcv")
 
 names(mds_W1)
 W1_coord <- mds_W1$cmdscale.out # Get coords to plot with ggplot2
@@ -241,17 +245,18 @@ MDS_W1 <- ggplot(W1_coord) +
   geom_text_repel(aes(x = x, y = y, label = animal)) +
   theme_bw(base_size = 12, base_family = "Calibri") +
   ggtitle("+1 wk") +
-  xlab("Dimension 1") +
-  ylab("Dimension 2")
+  xlab("BCV distance 1") +
+  ylab("BCV distance 2")
 
 # Check W1 MDS plot
 MDS_W1
 
 
 ### Plot MDS of Week +2 time point
-mds_W2 <- plotMDS(x = PPDb_norm[, grep(pattern = "_W2_",
+mds_W2 <- plotMDS.DGEList(x = PPDb_norm[, grep(pattern = "_W2_",
                                        x = colnames(PPDb_norm))],
-                  plot = FALSE)
+                          plot = FALSE,
+                          method = "bcv")
 
 names(mds_W2)
 W2_coord <- mds_W2$cmdscale.out # Get coords to plot with ggplot2
@@ -288,17 +293,18 @@ MDS_W2 <- ggplot(W2_coord) +
   geom_text_repel(aes(x = x, y = y, label = animal)) +
   theme_bw(base_size = 12, base_family = "Calibri") +
   ggtitle("+2 wk") +
-  xlab("Dimension 1") +
-  ylab("Dimension 2")
+  xlab("BCV distance 1") +
+  ylab("BCV distance 2")
 
 # Check W2 MDS plot
 MDS_W2
 
 
 ### Plot MDS of Week +10 time point
-mds_W10 <- plotMDS(x = PPDb_norm[, grep(pattern = "_W10_",
+mds_W10 <- plotMDS.DGEList(x = PPDb_norm[, grep(pattern = "_W10_",
                                         x = colnames(PPDb_norm))],
-                   plot = FALSE)
+                           plot = FALSE,
+                           method = "bcv")
 
 names(mds_W10)
 W10_coord <- mds_W10$cmdscale.out # Get coords to plot with ggplot2
@@ -335,8 +341,8 @@ MDS_W10 <- ggplot(W10_coord) +
   geom_text_repel(aes(x = x, y = y, label = animal)) +
   theme_bw(base_size = 12, base_family = "Calibri") +
   ggtitle("+10 wk") +
-  xlab("Dimension 1") +
-  ylab("Dimension 2")
+  xlab("BCV distance 1") +
+  ylab("BCV distance 2")
 
 # Check W10 MDS plot
 MDS_W10
@@ -393,8 +399,8 @@ purrr::pwalk(list(files_MDSgrid, plots_MDSgrid),
              path      = imgDir,
              limitsize = FALSE,
              dpi       = 300,
-             height    = 14,
-             width     = 12,
+             height    = 10,
+             width     = 15,
              units     = "in")
 
 ##################################
@@ -446,11 +452,13 @@ write_csv(as.data.frame(block_animal),
           path = file.path(paste0(workDir, "/PPDb_design-matrix.csv")),
           col_names = TRUE)
 
-###########################################################
-# 23 Estimate the dispersion parameter for each tag using #
-#      the Cox-Reid method (for multi-factor data)        #
-###########################################################
+#########################################
+# 23 Estimate the dispersion parameters #
+#########################################
 
+# Common and tended dispersions are estimated with the
+# Cox-Reid method and tagwise dispersions with the
+# empirical Bayes method
 PPDb_disp <- estimateDisp.DGEList(y       = PPDb_norm,
                                   design  = block_animal,
                                   robust  = TRUE,
@@ -656,9 +664,9 @@ pwalk(list(DElists, DEpaths),
       write_csv,
       col_names = TRUE)
 
-###################################################
-# 26 Plot: Bubble chart of DE genes (FDR < 0.001) #
-###################################################
+###############################################
+# 26 Plot: Treemaps of DE genes (FDR < 0.001) #
+###############################################
 
 # Get numbers of up and down regulated genes
 # at each time point
@@ -677,49 +685,50 @@ Up_Down$time_point %<>%
   factor() %>%
   fct_inorder()
 
+# Plotting labels
+Up_Down %<>% dplyr::mutate(labelsUp = paste(time_point, up, sep = ' '))
+Up_Down %<>% dplyr::mutate(labelsDown = paste(time_point, down, sep = ' '))
+
 # Check data frame
 Up_Down
 
-# Plot chart
-Up_Down %>%
-  dplyr::mutate(down2 = -down,
-                n2 = -n) %>%
-  ggplot() +
-  geom_point(aes(x = time_point, y = up),
-             colour = "#f1a340",
-             size = 6,
-             show.legend = FALSE) +
-  geom_text_repel(aes(x = time_point, y = up, label = up)) +
-  geom_point(aes(x = time_point, y = down2),
-             colour = "#998ec3",
-             size = 6,
-             show.legend = FALSE) +
-  geom_text_repel(aes(x = time_point, y = down2, label = abs(down2))) +
-  annotate("text", x = 1, y = 2500,
-           label = "Increased expression",
-           colour = "#f1a340",
-           fontface = "bold") +
-  annotate("text", x = 1, y = -2500,
-           label = "Decreased expression",
-           colour = "#998ec3",
-           fontface = "bold") +
-  theme_bw(base_size = 14, base_family = "Calibri") +
-  ggtitle("Differentially expressed genes (B-H FDR < 0.001)") +
-  xlab("Time point") +
-  ylab(NULL) -> bubble_DE
+# Plot chart increased expression
+# Run this chunk together
+cairo_pdf(filename = file.path(paste0(imgDir, "/tree_up.pdf")),
+          width    = 8,
+          height   = 4,
+          family   = "Calibri",
+          fallback_resolution = 300)
+treemap(Up_Down,
+        index             = "labelsUp",
+        vSize             = "up",
+        type              = "index",
+        palette           = "PRGn",
+        title             = "Increased expression",
+        fontsize.title    = 14,
+        fontfamily.title  = "Calibri",
+        fontfamily.labels = "Calibri",
+        fontsize.labels   = 16)
+dev.off()
 
-# Check plot
-bubble_DE
-
-# Export high quality figure
-ggplot2::ggsave("bubble_DE.pdf",
-                device    = cairo_pdf,
-                path      = imgDir,
-                limitsize = FALSE,
-                dpi       = 300,
-                height    = 10,
-                width     = 14,
-                units     = "in")
+# Plot chart decreased expression
+# Run this chunk together
+cairo_pdf(filename = file.path(paste0(imgDir, "/tree_down.pdf")),
+          width    = 8,
+          height   = 4,
+          family   = "Calibri",
+          fallback_resolution = 300)
+treemap(Up_Down,
+        index             = "labelsDown",
+        vSize             = "down",
+        type              = "index",
+        palette           = "-PRGn",
+        title             = "Decreased expression",
+        fontsize.title    = 14,
+        fontfamily.title  = "Calibri",
+        fontfamily.labels = "Calibri",
+        fontsize.labels   = 16)
+dev.off()
 
 ###################################################
 # 27 Plot: Venn diagram of DE genes (FDR < 0.001) #
