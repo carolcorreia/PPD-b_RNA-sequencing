@@ -5,7 +5,7 @@
 
 # Author: Carolina N. Correia
 # GitHub Repository DOI:
-# Date: October 17th 2017
+# Date: October 24th 2017
 
 ##################################
 # 01 Working directory and RData #
@@ -42,7 +42,7 @@ library(tmod)
 
 # Download Human - Cow orthologues (15 column file) using the
 # HGNC Comparison of Orthology Predictions (HCOP) bulk downloads tool:
-# "ftp://ftp.ebi.ac.uk/pub/databases/genenames/hcop/human_cow_hcop_fifteen_column.txt.gz"
+# ftp://ftp.ebi.ac.uk/pub/databases/genenames/hcop/human_cow_hcop_fifteen_column.txt.gz
 # Downloaded on 14th October 2017
 
 hcop_data <- read_delim("human_cow_hcop_fifteen_column.txt",
@@ -194,7 +194,8 @@ pie <- tmodDecideTests(Wm1_HGNC$human_symbol,
                                     W2_HGNC$FDR,
                                     W10_HGNC$FDR),
                        lfc.thr = 0.5,
-                       pval.thr = 0.001)
+                       pval.thr = 0.001,
+                       mset = "all")
 
 names(pie) <- c("Wm1", "W1", "W2", "W10")
 
@@ -291,8 +292,66 @@ pwalk(list(msiglists, file.path(tablesDir, msigfiles)),
       write_csv,
       col_names = TRUE)
 
+##################################################
+# 11 Compare Hallmark modules across time points #
+##################################################
+
+# Named msig lists
+msiglists <- list(Wm1_msig, W1_msig, W2_msig, W10_msig)
+names(msiglists) <- c("Wm1", "W1", "W2", "W10")
+
+# Summarise module information and order it by q-values
+hall_summary <- tmodSummary(msiglists, clust = "qval")
+
+# Check data frame
+head(hall_summary)
+dim(hall_summary)
+
+# Output data
+hall_summary %>%
+  dplyr::rename(Module_id = ID) %>%
+  write_csv(path = file.path(paste0(tablesDir, "/hallmark_summary.csv")),
+            col_names = TRUE)
+
+#########################################################
+# 12 Plot: panel of Hallmark modules across time points #
+#########################################################
+
+# Create data frame for pie object
+# (the universe of 17,789 ortholog genes is the same for all time points,
+# so it does not matter which one is used as the input character vector
+# of gene symbols)
+pie_hall <- tmodDecideTests(Wm1_HGNC$human_symbol,
+                            lfc = cbind(Wm1_HGNC$logFC,
+                                        W1_HGNC$logFC,
+                                        W2_HGNC$logFC,
+                                        W10_HGNC$logFC),
+                            pval = cbind(Wm1_HGNC$FDR,
+                                         W1_HGNC$FDR,
+                                         W2_HGNC$FDR,
+                                         W10_HGNC$FDR),
+                            lfc.thr = 0.5,
+                            pval.thr = 0.001,
+                            mset = msig[hall])
+
+names(pie_hall) <- c("Wm1", "W1", "W2", "W10")
+
+# Run this chunk together
+cairo_pdf(filename = file.path(paste0(imgDir, "/Hall_panel_plot.pdf")),
+          width    = 10,
+          height   = 12,
+          family   = "Calibri",
+          fallback_resolution = 300)
+tmodPanelPlot(msiglists,
+              pval.thr = 10^-3,
+              pie = pie_hall,
+              pie.style = "pie",
+              pie.colors = c("#008837", "#e5e5e5", "#7b3294"),
+              clust = "effect")
+dev.off()
+
 ######################################################
-# 11 Apply tmod CERNO test with MSigDB KEGG pathways #
+# 13 Apply tmod CERNO test with MSigDB KEGG pathways #
 ######################################################
 
 # Apply the CERNO test at each time point with FDR < 0.001
@@ -345,7 +404,63 @@ pwalk(list(kegglists, file.path(tablesDir, keggfiles)),
       write_csv,
       col_names = TRUE)
 
+###############################################
+# 14 Compare KEGG pathways across time points #
+###############################################
 
+# Named KEGG lists
+kegglists <- list(Wm1_kegg, W1_kegg, W2_kegg, W10_kegg)
+names(kegglists) <- c("Wm1", "W1", "W2", "W10")
+
+# Summarise module information and order it by q-values
+kegg_summary <- tmodSummary(kegglists, clust = "qval")
+
+# Check data frame
+head(kegg_summary)
+dim(kegg_summary)
+
+# Output data
+kegg_summary %>%
+  dplyr::rename(Module_id = ID) %>%
+  write_csv(path = file.path(paste0(tablesDir, "/kegg_summary.csv")),
+            col_names = TRUE)
+
+######################################################
+# 15 Plot: panel of KEGG pathways across time points #
+######################################################
+
+# Create data frame for pie object
+# (the universe of 17,789 ortholog genes is the same for all time points,
+# so it does not matter which one is used as the input character vector
+# of gene symbols)
+pie_kegg <- tmodDecideTests(Wm1_HGNC$human_symbol,
+                            lfc = cbind(Wm1_HGNC$logFC,
+                                        W1_HGNC$logFC,
+                                        W2_HGNC$logFC,
+                                        W10_HGNC$logFC),
+                            pval = cbind(Wm1_HGNC$FDR,
+                                         W1_HGNC$FDR,
+                                         W2_HGNC$FDR,
+                                         W10_HGNC$FDR),
+                            lfc.thr = 0.5,
+                            pval.thr = 0.001,
+                            mset = msig[kegg])
+
+names(pie_kegg) <- c("Wm1", "W1", "W2", "W10")
+
+# Run this chunk together
+cairo_pdf(filename = file.path(paste0(imgDir, "/kegg_panel_plot.pdf")),
+          width    = 10,
+          height   = 12,
+          family   = "Calibri",
+          fallback_resolution = 300)
+tmodPanelPlot(kegglists,
+              pval.thr = 10^-3,
+              pie = pie_kegg,
+              pie.style = "pie",
+              pie.colors = c("#008837", "#e5e5e5", "#7b3294"),
+              clust = "effect")
+dev.off()
 
 ############################
 # 12 Save Save .RData file #
