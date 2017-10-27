@@ -320,8 +320,8 @@ ggsave("grid_waffle.pdf",
 
 devtools::session_info()
 
-###########################
-# Proceed to Part 4: tmod #
-###########################
+###################################
+# Proceed to modules and pathways #
+###################################
 
-# File: 04-PPDb-RNA-seq_tmod.R
+# File: 05-PPDb-RNA-seq_tmod.R

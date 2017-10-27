@@ -220,7 +220,7 @@ PPDb_dgelist %>%
   ggplot() +
       geom_density(aes(x     = log10(count + 1),
                        group = sample)) +
-      theme_bw() +
+      theme_bw(base_size = 12, base_family = "Calibri") +
       ylab("Density of raw gene counts per sample") +
       xlab(expression(paste(log[10], "(counts + 1)"))) -> density_raw
 
