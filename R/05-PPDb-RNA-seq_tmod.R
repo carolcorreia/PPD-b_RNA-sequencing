@@ -5,7 +5,7 @@
 
 # Author: Carolina N. Correia
 # GitHub Repository DOI:
-# Date: October 24th 2017
+# Date: October 31st 2017
 
 ##################################
 # 01 Working directory and RData #
@@ -31,7 +31,6 @@ library(tidyverse)
 library(magrittr)
 library(tmod)
 
-
 # Uncomment functions below to install packages in case you don't have them
 
 #install.packages("tmod")
@@ -40,29 +39,33 @@ library(tmod)
 # 03 Get human orthologous genes from HCOP #
 ############################################
 
-# Download Human - Cow orthologues (15 column file) using the
-# HGNC Comparison of Orthology Predictions (HCOP) bulk downloads tool:
-# ftp://ftp.ebi.ac.uk/pub/databases/genenames/hcop/human_cow_hcop_fifteen_column.txt.gz
+# Download Human - Cow orthologues (HomoloGene only) using the
+# HGNC Comparison of Orthology Predictions (HCOP) search tool:
+# https://www.genenames.org/cgi-bin/hcop
 # Downloaded on 14th October 2017
 
-hcop_data <- read_delim("human_cow_hcop_fifteen_column.txt",
-                        delim = "\t",
-                        quote = "")
+hcop_data <- read.delim2("hcop_homologene.txt")
 
 # Check data frame
 View(hcop_data)
+colnames(hcop_data)
 
 # Select desired variables
 hcop_data %>%
-  dplyr::select(cow_entrez_gene, cow_symbol,
-                human_entrez_gene, human_symbol) -> HGNC_symbols
+  dplyr::select(`Primary.NCBI.Gene.ID`,
+                `Ortholog.NCBI.Gene.ID`,
+                `Ortholog.symbol`) %>%
+  as.tibble() -> HGNC_symbols
+
+HGNC_symbols$Primary.NCBI.Gene.ID %<>% as.character()
+HGNC_symbols$Ortholog.NCBI.Gene.ID %<>% as.character()
 
 # Check data frame
-View(HGNC_symbols)
+HGNC_symbols
 
-##################################################
-# 04 Match cow gene symbols to human orthologues #
-##################################################
+################################################
+# 04 Map cow gene symbols to human orthologues #
+################################################
 
 # Import all genes previously tested for DE with edgeR
 # and sort by smallest FDR
@@ -70,28 +73,36 @@ View(HGNC_symbols)
 # -1 wk
 read_csv("Wm1_AllGenes.csv", col_types = cols(EntrezID = "c")) %>%
   dplyr::inner_join(HGNC_symbols,
-                   by = c("EntrezID" = "cow_entrez_gene")) %>%
+                   by = c("EntrezID" = "Primary.NCBI.Gene.ID")) %>%
+  dplyr::filter(!`Ortholog.symbol` == "") %>%
+  dplyr::filter(duplicated(`Ortholog.symbol`) == FALSE) %>%
   dplyr::arrange(FDR) -> Wm1_HGNC
 
 
 # +1 wk
 read_csv("W1_AllGenes.csv", col_types = cols(EntrezID = "c")) %>%
   dplyr::inner_join(HGNC_symbols,
-                    by = c("EntrezID" = "cow_entrez_gene")) %>%
+                    by = c("EntrezID" = "Primary.NCBI.Gene.ID")) %>%
+  dplyr::filter(!`Ortholog.symbol` == "") %>%
+  dplyr::filter(duplicated(`Ortholog.symbol`) == FALSE) %>%
   dplyr::arrange(FDR) -> W1_HGNC
 
 
 # +2 wk
 read_csv("W2_AllGenes.csv", col_types = cols(EntrezID = "c")) %>%
   dplyr::inner_join(HGNC_symbols,
-                    by = c("EntrezID" = "cow_entrez_gene")) %>%
+                    by = c("EntrezID" = "Primary.NCBI.Gene.ID")) %>%
+  dplyr::filter(!`Ortholog.symbol` == "") %>%
+  dplyr::filter(duplicated(`Ortholog.symbol`) == FALSE) %>%
   dplyr::arrange(FDR) -> W2_HGNC
 
 
 # +10 wk
 read_csv("W10_AllGenes.csv", col_types = cols(EntrezID = "c")) %>%
   dplyr::inner_join(HGNC_symbols,
-                    by = c("EntrezID" = "cow_entrez_gene")) %>%
+                    by = c("EntrezID" = "Primary.NCBI.Gene.ID")) %>%
+  dplyr::filter(!`Ortholog.symbol` == "") %>%
+  dplyr::filter(duplicated(`Ortholog.symbol`) == FALSE) %>%
   dplyr::arrange(FDR) -> W10_HGNC
 
 
@@ -101,6 +112,15 @@ W1_HGNC
 W2_HGNC
 W10_HGNC
 
+# Output data
+hgnclists <- list(Wm1_HGNC, W1_HGNC, W2_HGNC, W10_HGNC)
+hgncfiles <- c(paste0(c("Wm1_HGNC", "W1_HGNC", "W2_HGNC", "W10_HGNC"),
+                      ".csv"))
+
+pwalk(list(hgnclists, file.path(tablesDir, hgncfiles)),
+      write_csv,
+      col_names = TRUE)
+
 ##################################################
 # 05 Apply tmod CERNO test with standard modules #
 ##################################################
@@ -108,7 +128,7 @@ W10_HGNC
 # Apply the CERNO test at each time point with FDR < 0.001
 
 # -1 wk
-Wm1_tmod <- tmodCERNOtest(Wm1_HGNC$human_symbol,
+Wm1_tmod <- tmodCERNOtest(Wm1_HGNC$Ortholog.symbol,
                           qval = 0.001,
                           order.by = "pval",
                           mset = "all")
@@ -117,7 +137,7 @@ head(Wm1_tmod)
 dim(Wm1_tmod)
 
 # +1 wk
-W1_tmod <- tmodCERNOtest(W1_HGNC$human_symbol,
+W1_tmod <- tmodCERNOtest(W1_HGNC$Ortholog.symbol,
                          qval = 0.001,
                          order.by = "pval",
                          mset = "all")
@@ -126,7 +146,7 @@ head(W1_tmod)
 dim(W1_tmod)
 
 # +2 wk
-W2_tmod <- tmodCERNOtest(W2_HGNC$human_symbol,
+W2_tmod <- tmodCERNOtest(W2_HGNC$Ortholog.symbol,
                          qval = 0.001,
                          order.by = "pval",
                          mset = "all")
@@ -135,7 +155,7 @@ head(W2_tmod)
 dim(W2_tmod)
 
 # +10 wk
-W10_tmod <- tmodCERNOtest(W10_HGNC$human_symbol,
+W10_tmod <- tmodCERNOtest(W10_HGNC$Ortholog.symbol,
                           qval = 0.001,
                           order.by = "pval",
                           mset = "all")
@@ -181,10 +201,10 @@ tmod_summary %>%
 ################################################
 
 # Create data frame for pie object
-# (the universe of 17,789 ortholog genes is the same for all time points,
+# (the universe of 11,510 ortholog genes is the same for all time points,
 # so it does not matter which one is used as the input character vector
 # of gene symbols)
-pie <- tmodDecideTests(Wm1_HGNC$human_symbol,
+pie <- tmodDecideTests(Wm1_HGNC$Ortholog.symbol,
                        lfc = cbind(Wm1_HGNC$logFC,
                                    W1_HGNC$logFC,
                                    W2_HGNC$logFC,
@@ -245,7 +265,7 @@ kegg <- msig$MODULES$Subcategory == "CP:KEGG"
 # Apply the CERNO test at each time point with FDR < 0.001
 
 # -1 wk
-Wm1_msig <- tmodCERNOtest(Wm1_HGNC$human_symbol,
+Wm1_msig <- tmodCERNOtest(Wm1_HGNC$Ortholog.symbol,
                           qval = 0.001,
                           order.by = "pval",
                           mset = msig[hall])
@@ -254,7 +274,7 @@ head(Wm1_msig)
 dim(Wm1_msig)
 
 # +1 wk
-W1_msig <- tmodCERNOtest(W1_HGNC$human_symbol,
+W1_msig <- tmodCERNOtest(W1_HGNC$Ortholog.symbol,
                          qval = 0.001,
                          order.by = "pval",
                          mset = msig[hall])
@@ -263,7 +283,7 @@ head(W1_msig)
 dim(W1_msig)
 
 # +2 wk
-W2_msig <- tmodCERNOtest(W2_HGNC$human_symbol,
+W2_msig <- tmodCERNOtest(W2_HGNC$Ortholog.symbol,
                          qval = 0.001,
                          order.by = "pval",
                          mset = msig[hall])
@@ -272,7 +292,7 @@ head(W2_msig)
 dim(W2_msig)
 
 # +10 wk
-W10_msig <- tmodCERNOtest(W10_HGNC$human_symbol,
+W10_msig <- tmodCERNOtest(W10_HGNC$Ortholog.symbol,
                           qval = 0.001,
                           order.by = "pval",
                           mset = msig[hall])
@@ -321,7 +341,7 @@ hall_summary %>%
 # (the universe of 17,789 ortholog genes is the same for all time points,
 # so it does not matter which one is used as the input character vector
 # of gene symbols)
-pie_hall <- tmodDecideTests(Wm1_HGNC$human_symbol,
+pie_hall <- tmodDecideTests(Wm1_HGNC$Ortholog.symbol,
                             lfc = cbind(Wm1_HGNC$logFC,
                                         W1_HGNC$logFC,
                                         W2_HGNC$logFC,
@@ -357,7 +377,7 @@ dev.off()
 # Apply the CERNO test at each time point with FDR < 0.001
 
 # -1 wk
-Wm1_kegg <- tmodCERNOtest(Wm1_HGNC$human_symbol,
+Wm1_kegg <- tmodCERNOtest(Wm1_HGNC$Ortholog.symbol,
                           qval = 0.001,
                           order.by = "pval",
                           mset = msig[kegg])
@@ -366,7 +386,7 @@ head(Wm1_kegg)
 dim(Wm1_kegg)
 
 # +1 wk
-W1_kegg <- tmodCERNOtest(W1_HGNC$human_symbol,
+W1_kegg <- tmodCERNOtest(W1_HGNC$Ortholog.symbol,
                          qval = 0.001,
                          order.by = "pval",
                          mset = msig[kegg])
@@ -375,7 +395,7 @@ head(W1_kegg)
 dim(W1_kegg)
 
 # +2 wk
-W2_kegg <- tmodCERNOtest(W2_HGNC$human_symbol,
+W2_kegg <- tmodCERNOtest(W2_HGNC$Ortholog.symbol,
                          qval = 0.001,
                          order.by = "pval",
                          mset = msig[kegg])
@@ -384,7 +404,7 @@ head(W2_kegg)
 dim(W2_kegg)
 
 # +10 wk
-W10_kegg <- tmodCERNOtest(W10_HGNC$human_symbol,
+W10_kegg <- tmodCERNOtest(W10_HGNC$Ortholog.symbol,
                           qval = 0.001,
                           order.by = "pval",
                           mset = msig[kegg])
@@ -433,7 +453,7 @@ kegg_summary %>%
 # (the universe of 17,789 ortholog genes is the same for all time points,
 # so it does not matter which one is used as the input character vector
 # of gene symbols)
-pie_kegg <- tmodDecideTests(Wm1_HGNC$human_symbol,
+pie_kegg <- tmodDecideTests(Wm1_HGNC$Ortholog.symbol,
                             lfc = cbind(Wm1_HGNC$logFC,
                                         W1_HGNC$logFC,
                                         W2_HGNC$logFC,
@@ -461,6 +481,18 @@ tmodPanelPlot(kegglists,
               pie.colors = c("#008837", "#e5e5e5", "#7b3294"),
               clust = "effect")
 dev.off()
+
+###############################################
+# 16 Plot: AUC of KEGG modules #
+###############################################
+
+# +10 wk
+evidencePlot(W10_HGNC$Ortholog.symbol,
+             c("M3261", "M4844", "M17411", "M9809", "M16894"),
+             mset = msig[kegg],
+             col = c("#b2182b", "#d6604d", "#4d4d4d", "#92c5de", "#2166ac"))
+
+evidencePlot(W10_HGNC$human_symbol, "LI.M27.0")
 
 ############################
 # 12 Save Save .RData file #
