@@ -268,7 +268,8 @@ venn.plot <- venn.diagram(list(A = Wm1.vector,
                                B = W10.vector,
                                C = W1.vector,
                                D = W2.vector),
-                          filename        = file.path(paste0(imgDir, "/Venn_DE_FDR_001.png")),
+                          filename        = file.path(paste0(imgDir,
+                                                             "/Venn_DE_FDR_001.png")),
                           imagetype       = "png",
                           col             = "transparent",
                           fill            = c("#ffffcc",
@@ -296,11 +297,11 @@ venn.plot <- venn.diagram(list(A = Wm1.vector,
                           compression     = 'lzw',
                           resolution      = 300)
 
-#######################################
-# 36 DE genes common to all contrasts #
-#######################################
+######################
+# 36 Common DE genes #
+######################
 
-# Join common genes into single data frame
+# Join common DE genes to all time points into single data frame
 Wm1_FDR_001 %>%
   dplyr::inner_join(W1_FDR_001,
                     by = "EntrezID",
@@ -311,13 +312,39 @@ Wm1_FDR_001 %>%
                     by = "EntrezID",
                     suffix = c("_W2", "_W10")) -> common_DE
 
-# Check data frame
+# Join common DE genes to infected samples into single data frame
+W1_FDR_001 %>%
+  dplyr::inner_join(W2_FDR_001,
+                    by = "EntrezID",
+                    suffix = c("_W1", "_W2")) %>%
+  dplyr::inner_join(W10_FDR_001,
+                    by = "EntrezID") %>%
+  dplyr::anti_join(Wm1_FDR_001,
+                   by = "EntrezID") -> common_DE_infected
+
+# Select DE genes unique to healthy samples
+Wm1_FDR_001 %>%
+  dplyr::anti_join(W1_FDR_001,
+                    by = "EntrezID") %>%
+  dplyr::anti_join(W2_FDR_001,
+                    by = "EntrezID") %>%
+  dplyr::anti_join(W10_FDR_001,
+                    by = "EntrezID") -> healthy_DE
+
+# Check data frames
 common_DE
+common_DE_infected
+healthy_DE
 
 # Output data
-write_csv(common_DE,
-          path = file.path(paste0(tablesDir, "/common_DE_genes.csv")),
-          col_names = TRUE)
+VennDE <- list(common_DE, common_DE_infected, healthy_DE)
+VennDEfiles <- c(paste0(c("common_DE", "common_DE_infected", "healthy_DE"),
+                        "_genes.csv"))
+VennDEpaths <- file.path(tablesDir, VennDEfiles)
+
+pwalk(list(VennDE, VennDEpaths),
+      write_csv,
+      col_names = TRUE)
 
 ####################################################
 # 37 Plot: Volcano of DE genes at each time point  #
