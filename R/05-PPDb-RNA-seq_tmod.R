@@ -1,11 +1,11 @@
 ######################################################################
 # PPD-b stimulated vs unstimulated peripheral blood RNA-seq Analysis #
-#                    --- tmod ---                      #
+#                           --- tmod ---                             #
 ######################################################################
 
 # Author: Carolina N. Correia
 # GitHub Repository DOI:
-# Date: October 31st 2017
+# Date: November 22nd 2017
 
 ##################################
 # 01 Working directory and RData #
@@ -30,6 +30,7 @@ load("PPDb-RNA-seq-tmod.rda")
 library(tidyverse)
 library(magrittr)
 library(tmod)
+library(Cairo)
 
 # Uncomment functions below to install packages in case you don't have them
 
@@ -121,9 +122,9 @@ pwalk(list(hgnclists, file.path(tablesDir, hgncfiles)),
       write_csv,
       col_names = TRUE)
 
-##################################################
-# 05 Apply tmod CERNO test with standard modules #
-##################################################
+###############################################
+# 05 Apply tmod CERNO test with LI/DC modules #
+###############################################
 
 # Apply the CERNO test at each time point with FDR < 0.001
 
@@ -233,13 +234,149 @@ tmodPanelPlot(time_points,
               clust = "effect")
 dev.off()
 
-###############################################
-# 08 Plots: evidence plot of selected modules #
-###############################################
+#####################################
+# 08 Plots: ROC of LI/DC chemokines #
+#####################################
+
+# -1 wk
+cairo_pdf(filename = file.path(paste0(imgDir, "/chemoLI_Wm1.pdf")),
+          width    = 5,
+          height   = 4,
+          family   = "Calibri",
+          fallback_resolution = 300)
+evidencePlot(Wm1_HGNC$Ortholog.symbol,
+             legend = "right",
+             main = "-1 wk",
+             c("LI.M27.0", "LI.M27.1", "LI.M29", "LI.M86.0"),
+             mset = "all",
+             col = c("#67001f", "#d6604d",
+                     "#5aae61", "#053061"))
+dev.off()
+
+# +1 wk
+cairo_pdf(filename = file.path(paste0(imgDir, "/chemoLI_W1.pdf")),
+          width    = 5,
+          height   = 4,
+          family   = "Calibri",
+          fallback_resolution = 300)
+evidencePlot(W1_HGNC$Ortholog.symbol,
+             legend = "right",
+             main = "+1 wk",
+             c("LI.M27.0", "LI.M27.1", "LI.M29", "LI.M86.0"),
+             mset = "all",
+             col = c("#67001f", "#d6604d",
+                     "#5aae61", "#053061"))
+dev.off()
+
+# +2 wk
+cairo_pdf(filename = file.path(paste0(imgDir, "/chemoLI_W2.pdf")),
+          width    = 5,
+          height   = 4,
+          family   = "Calibri",
+          fallback_resolution = 300)
+evidencePlot(W2_HGNC$Ortholog.symbol,
+             legend = "right",
+             main = "+2 wk",
+             c("LI.M27.0", "LI.M27.1", "LI.M29", "LI.M86.0"),
+             mset = "all",
+             col = c("#67001f", "#d6604d",
+                     "#5aae61", "#053061"))
+dev.off()
 
 # +10 wk
-evidencePlot(W10_HGNC$human_symbol, "LI.M16")
-evidencePlot(W10_HGNC$human_symbol, "LI.M27.0")
+cairo_pdf(filename = file.path(paste0(imgDir, "/chemoLI_W10.pdf")),
+          width    = 5,
+          height   = 4,
+          family   = "Calibri",
+          fallback_resolution = 300)
+evidencePlot(W10_HGNC$Ortholog.symbol,
+             legend = "right",
+             main = "+10 wk",
+             c("LI.M27.0", "LI.M27.1", "LI.M29", "LI.M86.0"),
+             mset = "all",
+             col = c("#67001f", "#d6604d",
+                     "#5aae61", "#053061"))
+dev.off()
+
+#####################################
+# 09 Plots: ROC of LI/DC interferon #
+#####################################
+
+# +2 wk
+cairo_pdf(filename = file.path(paste0(imgDir, "/interLI_W2.pdf")),
+          width    = 5,
+          height   = 4,
+          family   = "Calibri",
+          fallback_resolution = 300)
+evidencePlot(W2_HGNC$Ortholog.symbol,
+             legend = "right",
+             main = "+2 wk",
+             c("LI.M127", "DC.M3.4", "DC.M5.12"),
+             mset = "all",
+             col = c("#67001f", "#5aae61", "#053061"))
+dev.off()
+
+# +10 wk
+cairo_pdf(filename = file.path(paste0(imgDir, "/interLI_W10.pdf")),
+          width    = 5,
+          height   = 4,
+          family   = "Calibri",
+          fallback_resolution = 300)
+evidencePlot(W10_HGNC$Ortholog.symbol,
+             legend = "right",
+             main = "+10 wk",
+             c("LI.M127", "LI.M111.1", "DC.M3.4", "DC.M5.12"),
+             mset = "all",
+             col = c("#67001f", "#d6604d",
+                     "#5aae61", "#053061"))
+dev.off()
+
+#################################
+# 10 Plots: ROC of LI/DC others #
+#################################
+
+# +1 wk
+cairo_pdf(filename = file.path(paste0(imgDir, "/otherLI_W1.pdf")),
+          width    = 5,
+          height   = 4,
+          family   = "Calibri",
+          fallback_resolution = 300)
+evidencePlot(W1_HGNC$Ortholog.symbol,
+             legend = "right",
+             main = "+1 wk",
+             c("DC.M4.14"),
+             mset = "all",
+             col = c("#67001f"))
+dev.off()
+
+# +2 wk
+cairo_pdf(filename = file.path(paste0(imgDir, "/otherLI_W2.pdf")),
+          width    = 5,
+          height   = 4,
+          family   = "Calibri",
+          fallback_resolution = 300)
+evidencePlot(W2_HGNC$Ortholog.symbol,
+             legend = "right",
+             main = "+2 wk",
+             c("LI.M35.1", "LI.M115", "DC.M4.14"),
+             mset = "all",
+             col = c("#67001f", "#5aae61", "#053061"))
+dev.off()
+
+# +10 wk
+cairo_pdf(filename = file.path(paste0(imgDir, "/otherLI_W10.pdf")),
+          width    = 5,
+          height   = 4,
+          family   = "Calibri",
+          fallback_resolution = 300)
+evidencePlot(W10_HGNC$Ortholog.symbol,
+             legend = "right",
+             main = "+10 wk",
+             c("LI.M24", "LI.M35.1", "LI.M115", "DC.M4.14"),
+             mset = "all",
+             col = c("#67001f", "#d6604d",
+                     "#5aae61", "#053061"))
+dev.off()
 
 ############################
 # 09 Import MSigDB modules #
@@ -370,8 +507,69 @@ tmodPanelPlot(msiglists,
               clust = "effect")
 dev.off()
 
+########################################################
+# 13 Plots: evidence plot of selected Hallmark modules #
+########################################################
+
+# -1 wk
+par(family = "Calibri")
+evidencePlot(Wm1_HGNC$Ortholog.symbol,
+             legend = "right",
+             main = "-1 wk",
+             lwd = 1.8,
+             c("LI.M27.0", "LI.M27.1", "LI.M24",
+               "LI.M29", "LI.M86.0", "LI.M115"),
+             mset = msig[hall],
+             col = c("#67001f", "#b2182b", "#d6604d",
+                     "#5aae61", "#2166ac", "#053061"))
+
+# +10 wk
+par(family = "Calibri")
+evidencePlot(W10_HGNC$Ortholog.symbol,
+             legend = "right",
+             main = "+10 wk",
+             lwd = 1.8,
+             c("LI.M27.0", "LI.M27.1", "LI.M24",
+               "LI.M29", "LI.M86.0", "LI.M115"),
+             mset = msig[hall],
+             col = c("#67001f", "#b2182b", "#d6604d",
+                     "#5aae61", "#2166ac", "#053061"))
+
+
+#################################
+# 14 Genes at each LI/DC module #
+#################################
+
+# -1 wk
+View(rownames(tmod::showModule(Wm1_HGNC,
+                               Wm1_HGNC$Ortholog.symbol,
+                               module = c("LI.M27.0"))))
+View(rownames(tmod::showModule(Wm1_HGNC,
+                               Wm1_HGNC$Ortholog.symbol,
+                               module = c("LI.M27.1"))))
+
+View(rownames(tmod::showModule(Wm1_HGNC,
+                               Wm1_HGNC$Ortholog.symbol,
+                               module = c("LI.M29"))))
+View(rownames(tmod::showModule(Wm1_HGNC,
+                               Wm1_HGNC$Ortholog.symbol,
+                               module = c("LI.M86.0"))))
+
+
+LI.M11.0
+LI.S5
+LI.M86.0
+LI.M29
+LI.M37.0
+LI.S10
+LI.M4.3
+LI.M43.1
+LI.M118.0
+DC.M5.14
+
+
 ######################################################
-# 13 Apply tmod CERNO test with MSigDB KEGG pathways #
+# 14 Apply tmod CERNO test with MSigDB KEGG pathways #
 ######################################################
 
 # Apply the CERNO test at each time point with FDR < 0.001
@@ -425,7 +623,7 @@ pwalk(list(kegglists, file.path(tablesDir, keggfiles)),
       col_names = TRUE)
 
 ###############################################
-# 14 Compare KEGG pathways across time points #
+# 15 Compare KEGG pathways across time points #
 ###############################################
 
 # Named KEGG lists
@@ -446,7 +644,7 @@ kegg_summary %>%
             col_names = TRUE)
 
 ######################################################
-# 15 Plot: panel of KEGG pathways across time points #
+# 16 Plot: panel of KEGG pathways across time points #
 ######################################################
 
 # Create data frame for pie object
@@ -482,30 +680,37 @@ tmodPanelPlot(kegglists,
               clust = "effect")
 dev.off()
 
-###############################################
-# 16 Plot: AUC of KEGG modules #
-###############################################
+####################################################
+# 17 Plots: evidence plot of selected KEGG modules #
+####################################################
 
 # +10 wk
+par(family = "Calibri")
 evidencePlot(W10_HGNC$Ortholog.symbol,
-             c("M3261", "M4844", "M17411", "M9809", "M16894"),
+             legend = "right",
+             main = "+10 wk",
+             lwd = 1.8,
+             c("LI.M27.0", "LI.M27.1", "LI.M24",
+               "LI.M29", "LI.M86.0", "LI.M115"),
              mset = msig[kegg],
-             col = c("#b2182b", "#d6604d", "#4d4d4d", "#92c5de", "#2166ac"))
+             col = c("#67001f", "#b2182b", "#d6604d",
+                     "#5aae61", "#2166ac", "#053061"))
 
-evidencePlot(W10_HGNC$human_symbol, "LI.M27.0")
 
 ############################
-# 12 Save Save .RData file #
+# 18 Save Save .RData file #
 ############################
 
 save.image("PPDb-RNA-seq-tmod.rda")
 
 ##########################
-# 13 Save R session info #
+# 19 Save R session info #
 ##########################
 
 devtools::session_info()
 
-#######
-# END #
-#######
+########################
+# Proceed to heat maps #
+########################
+
+# File: 06-PPDb-RNA-seq_heatmaps.R
