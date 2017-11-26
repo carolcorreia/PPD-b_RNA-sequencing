@@ -5,7 +5,7 @@
 
 # Author: Carolina N. Correia
 # GitHub Repository DOI:
-# Date: November 22nd 2017
+# Date: November 26th 2017
 
 ##################################
 # 01 Working directory and RData #
@@ -17,7 +17,9 @@ setwd("/Users/ccorreia/Dropbox/CSF/Animal_Genomics/PPD-B-sti_vs_uns/edgeR_sense"
 # Define variables for specific directories
 workDir <- getwd()
 tablesDir <- paste0(workDir, "/Tables")
+modulesDir <- paste0(workDir, "/Tables/modules")
 imgDir <- paste0(workDir, "/Figures")
+imgModDir <- paste0(workDir, "/Figures/modules")
 
 # Load previously saved data
 load("PPDb-RNA-seq-tmod.rda")
@@ -29,8 +31,11 @@ load("PPDb-RNA-seq-tmod.rda")
 # Load packages
 library(tidyverse)
 library(magrittr)
+library(stringr)
+library(forcats)
 library(tmod)
 library(Cairo)
+library(reshape2)
 
 # Uncomment functions below to install packages in case you don't have them
 
@@ -299,7 +304,168 @@ evidencePlot(W10_HGNC$Ortholog.symbol,
 dev.off()
 
 #####################################
-# 09 Plots: ROC of LI/DC interferon #
+# 09 Get genes at each LI/DC module #
+#####################################
+
+# Define function
+GetGenesModules <- function(x, y) {
+  # x is a named list of data frames
+  # y is character (module code)
+  map(x,
+      ~tmod::showModule(.x,
+                        .x$Ortholog.symbol,
+                        module = y,
+                        mset = "all")) %>%
+    melt() %>%
+    mutate(mod_id = y) %>%
+    dplyr::rename(time_point = L1) %>%
+    mutate(time_point = str_replace(time_point, "_HGNC", "")) %>%
+    as.tibble() -> result
+}
+
+# Define named list of time points
+time_list <- list(Wm1_HGNC, W1_HGNC, W2_HGNC, W10_HGNC)
+names(time_list) <- c("Wm1_HGNC", "W1_HGNC", "W2_HGNC", "W10_HGNC")
+
+# All weeks
+LI.M27.0 <- GetGenesModules(time_list, "LI.M27.0")
+LI.M11.0 <- GetGenesModules(time_list, "LI.M11.0")
+LI.S5 <- GetGenesModules(time_list, "LI.S5")
+LI.M86.0 <- GetGenesModules(time_list, "LI.M86.0")
+LI.M29 <- GetGenesModules(time_list, "LI.M29")
+LI.M37.0 <- GetGenesModules(time_list, "LI.M37.0")
+LI.M27.1 <- GetGenesModules(time_list, "LI.M27.1")
+
+# Weeks -1, +1, +2
+LI.S10 <- GetGenesModules(time_list[1:3], "LI.S10")
+LI.M118.0 <- GetGenesModules(time_list[1:3], "LI.M118.0")
+
+# Weeks -1, +2, +10
+LI.M43.1 <- GetGenesModules(time_list[-(2)], "LI.M43.1")
+
+# Weeks -1, +1
+LI.M4.3 <- GetGenesModules(time_list[1:2], "LI.M4.3")
+
+# Weeks +1, +2, +10
+LI.M4.0 <- GetGenesModules(time_list[2:4], "LI.M4.0")
+DC.M4.14 <- GetGenesModules(time_list[2:4], "DC.M4.14")
+
+# Weeks +1, +2
+LI.M20 <- GetGenesModules(time_list[2:3], "LI.M20")
+LI.M112.0 <- GetGenesModules(time_list[2:3], "LI.M112.0")
+
+# Weeks +2, +10
+DC.M3.4 <- GetGenesModules(time_list[3:4], "DC.M3.4")
+DC.M5.12 <- GetGenesModules(time_list[3:4], "DC.M5.12")
+LI.M35.1 <- GetGenesModules(time_list[3:4], "LI.M35.1")
+LI.M115 <- GetGenesModules(time_list[3:4], "LI.M115")
+LI.M127 <- GetGenesModules(time_list[3:4], "LI.M127")
+
+# Week +1
+LI.M0 <- GetGenesModules(time_list[2], "LI.M0")
+LI.M11.1 <- GetGenesModules(time_list[2], "LI.M11.1")
+
+# Week +2
+LI.M13 <- GetGenesModules(time_list[3], "LI.M13")
+LI.M165 <- GetGenesModules(time_list[3], "LI.M165")
+
+# Week +10
+LI.M35.0 <- GetGenesModules(time_list[4], "LI.M35.0")
+LI.M4.1 <- GetGenesModules(time_list[4], "LI.M4.1")
+LI.M86.1 <- GetGenesModules(time_list[4], "LI.M86.1")
+LI.M43.0 <- GetGenesModules(time_list[4], "LI.M43.0")
+LI.M111.1 <- GetGenesModules(time_list[4], "LI.M111.1")
+LI.M24 <- GetGenesModules(time_list[4], "LI.M24")
+
+# Output data
+mod_lists <- list(LI.M27.0, LI.M11.0, LI.S5, LI.M86.0, LI.M29,
+                  LI.M37.0, LI.S10, LI.M27.1, LI.M4.3, LI.M118.0,
+                  LI.M43.1, LI.M20, LI.M4.0, LI.M112.0, DC.M4.14,
+                  LI.M0, LI.M11.1, DC.M3.4, DC.M5.12, LI.M35.1,
+                  LI.M115, LI.M165, LI.M127, LI.M13, LI.M35.0,
+                  LI.M4.1, LI.M86.1, LI.M43.0, LI.M111.1, LI.M24)
+
+mod_files <- c(paste0(c("LIM270", "LIM110", "LIS5", "LIM860", "LIM29",
+                        "LIM370", "LIS10", "LIM271", "LIM43", "LIM1180",
+                        "LIM431", "LIM20", "LIM40", "LIM1120", "DCM414",
+                        "LIM0", "LIM111", "DCM34", "DCM512", "LIM351",
+                        "LIM115", "LIM165", "LIM127", "LIM13", "LIM350",
+                        "LIM41", "LIM861", "LIM430", "LIM1111", "LIM24"),
+                      ".csv"))
+
+pwalk(list(mod_lists, file.path(modulesDir, mod_files)),
+      write_csv,
+      col_names = TRUE)
+
+######################################
+# 10 Plots: heat maps of all modules #
+######################################
+
+names(mod_lists) <- c("LIM270", "LIM110", "LIS5", "LIM860", "LIM29",
+                      "LIM370", "LIS10", "LIM271", "LIM43", "LIM1180",
+                      "LIM431", "LIM20", "LIM40", "LIM1120", "DCM414",
+                      "LIM0", "LIM111", "DCM34", "DCM512", "LIM351",
+                      "LIM115", "LIM165", "LIM127", "LIM13", "LIM350",
+                      "LIM41", "LIM861", "LIM430", "LIM1111", "LIM24")
+
+purpleGreen <- c("#00441B", "#1B7837", "#5AAE61",
+                 "#C7E9C0", "white", "#F1B6DA",
+                 "#9970AB", "#762A83", "#40004B")
+
+map(mod_lists,
+    ~ dplyr::filter(.x, variable == "logFC")) %>%
+  map(~ mutate(.x, Ortholog.symbol = fct_rev(Ortholog.symbol))) %>%
+  map(~ mutate(.x, time_point = fct_inorder(time_point))) %>%
+  map(~ mutate(.x, is.DE = as.logical(is.DE))) %>%
+  map(~ ggplot(.x) +
+        geom_tile(aes(x = time_point, y = Ortholog.symbol,
+                      fill = value),
+                  colour = "black",
+                  size = 0.2) +
+        geom_point(data = .x[.x$is.DE, ],
+                   aes(x = time_point, y = Ortholog.symbol,
+                       size = as.numeric(.x$is.DE)),
+                   colour = "black",
+                   shape = 42,
+                   size = 4) +
+        coord_fixed() +
+        ggtitle(unique(.x$mod_id)) +
+        xlab(NULL) +
+        ylab(NULL) +
+        scale_x_discrete(labels = c("Wm1" = "-1 wk",
+                                    "W1"  = "+1 wk",
+                                    "W2"  = "+2 wk",
+                                    "W10" = "+10 wk")) +
+        scale_fill_gradientn(name = expression(paste(log[2], "FC")),
+                             colours = purpleGreen) +
+        theme(panel.border = element_rect(fill = NA,
+                                          colour = "black", size = 1),
+              axis.text.x = element_text(angle = 90,
+                                         hjust = 1,
+                                         vjust = 0.5),
+              axis.text.y = element_text(face = "italic",
+                                         hjust = 1),
+              text = element_text(size = 14, family = "Calibri"),
+              plot.title = element_text(hjust = 0.5))) -> heatmaps
+
+# Check heatmaps
+heatmaps[1]
+
+### Export high quality image for all heatmaps
+heat_files <- paste0(c(names(heatmaps)), ".pdf")
+
+purrr::pwalk(list(heat_files, heatmaps),
+             ggsave,
+             device    = cairo_pdf,
+             path      = imgModDir ,
+             limitsize = FALSE,
+             dpi       = 300,
+             height    = 15,
+             width     = 8,
+             units     = "in")
+
+#####################################
+# 11 Plots: ROC of LI/DC interferon #
 #####################################
 
 # +2 wk
@@ -332,7 +498,7 @@ evidencePlot(W10_HGNC$Ortholog.symbol,
 dev.off()
 
 #################################
-# 10 Plots: ROC of LI/DC others #
+# 12 Plots: ROC of LI/DC others #
 #################################
 
 # +1 wk
@@ -379,338 +545,19 @@ evidencePlot(W10_HGNC$Ortholog.symbol,
 dev.off()
 
 ############################
-# 09 Import MSigDB modules #
-############################
-
-# http://software.broadinstitute.org/gsea/msigdb/download_file.jsp?filePath=/resources/msigdb/6.1/msigdb_v6.1.xml
-# Current MSigDB xml file
-# 17/10/17
-
-msig <- tmodImportMSigDB("msigdb_v6.1.xml")
-msig
-
-# Subset hallmark genes
-hall <- msig$MODULES$Category == "H"
-
-# Subset kegg pathways
-kegg <- msig$MODULES$Subcategory == "CP:KEGG"
-
-#######################################################
-# 10 Apply tmod CERNO test with MSigDB hallmark genes #
-#######################################################
-
-# Apply the CERNO test at each time point with FDR < 0.001
-
-# -1 wk
-Wm1_msig <- tmodCERNOtest(Wm1_HGNC$Ortholog.symbol,
-                          qval = 0.001,
-                          order.by = "pval",
-                          mset = msig[hall])
-
-head(Wm1_msig)
-dim(Wm1_msig)
-
-# +1 wk
-W1_msig <- tmodCERNOtest(W1_HGNC$Ortholog.symbol,
-                         qval = 0.001,
-                         order.by = "pval",
-                         mset = msig[hall])
-
-head(W1_msig)
-dim(W1_msig)
-
-# +2 wk
-W2_msig <- tmodCERNOtest(W2_HGNC$Ortholog.symbol,
-                         qval = 0.001,
-                         order.by = "pval",
-                         mset = msig[hall])
-
-head(W2_msig)
-dim(W2_msig)
-
-# +10 wk
-W10_msig <- tmodCERNOtest(W10_HGNC$Ortholog.symbol,
-                          qval = 0.001,
-                          order.by = "pval",
-                          mset = msig[hall])
-
-head(W10_msig)
-dim(W10_msig)
-
-# Output data
-msiglists <- list(Wm1_msig, W1_msig, W2_msig, W10_msig)
-msigIDcols <- rep(c("Module_id_msig"), each = 4)
-msigfiles <- c(paste0(c("Wm1_msig", "W1_msig", "W2_msig", "W10_msig"),
-                      ".csv"))
-
-msiglists %<>% map2(.y = msigIDcols, ~ dplyr::rename(.x, !!.y := "ID"))
-
-pwalk(list(msiglists, file.path(tablesDir, msigfiles)),
-      write_csv,
-      col_names = TRUE)
-
-##################################################
-# 11 Compare Hallmark modules across time points #
-##################################################
-
-# Named msig lists
-msiglists <- list(Wm1_msig, W1_msig, W2_msig, W10_msig)
-names(msiglists) <- c("Wm1", "W1", "W2", "W10")
-
-# Summarise module information and order it by q-values
-hall_summary <- tmodSummary(msiglists, clust = "qval")
-
-# Check data frame
-head(hall_summary)
-dim(hall_summary)
-
-# Output data
-hall_summary %>%
-  dplyr::rename(Module_id = ID) %>%
-  write_csv(path = file.path(paste0(tablesDir, "/hallmark_summary.csv")),
-            col_names = TRUE)
-
-#########################################################
-# 12 Plot: panel of Hallmark modules across time points #
-#########################################################
-
-# Create data frame for pie object
-# (the universe of 17,789 ortholog genes is the same for all time points,
-# so it does not matter which one is used as the input character vector
-# of gene symbols)
-pie_hall <- tmodDecideTests(Wm1_HGNC$Ortholog.symbol,
-                            lfc = cbind(Wm1_HGNC$logFC,
-                                        W1_HGNC$logFC,
-                                        W2_HGNC$logFC,
-                                        W10_HGNC$logFC),
-                            pval = cbind(Wm1_HGNC$FDR,
-                                         W1_HGNC$FDR,
-                                         W2_HGNC$FDR,
-                                         W10_HGNC$FDR),
-                            lfc.thr = 0.5,
-                            pval.thr = 0.001,
-                            mset = msig[hall])
-
-names(pie_hall) <- c("Wm1", "W1", "W2", "W10")
-
-# Run this chunk together
-cairo_pdf(filename = file.path(paste0(imgDir, "/Hall_panel_plot.pdf")),
-          width    = 10,
-          height   = 12,
-          family   = "Calibri",
-          fallback_resolution = 300)
-tmodPanelPlot(msiglists,
-              pval.thr = 10^-3,
-              pie = pie_hall,
-              pie.style = "pie",
-              pie.colors = c("#008837", "#e5e5e5", "#7b3294"),
-              clust = "effect")
-dev.off()
-
-########################################################
-# 13 Plots: evidence plot of selected Hallmark modules #
-########################################################
-
-# -1 wk
-par(family = "Calibri")
-evidencePlot(Wm1_HGNC$Ortholog.symbol,
-             legend = "right",
-             main = "-1 wk",
-             lwd = 1.8,
-             c("LI.M27.0", "LI.M27.1", "LI.M24",
-               "LI.M29", "LI.M86.0", "LI.M115"),
-             mset = msig[hall],
-             col = c("#67001f", "#b2182b", "#d6604d",
-                     "#5aae61", "#2166ac", "#053061"))
-
-# +10 wk
-par(family = "Calibri")
-evidencePlot(W10_HGNC$Ortholog.symbol,
-             legend = "right",
-             main = "+10 wk",
-             lwd = 1.8,
-             c("LI.M27.0", "LI.M27.1", "LI.M24",
-               "LI.M29", "LI.M86.0", "LI.M115"),
-             mset = msig[hall],
-             col = c("#67001f", "#b2182b", "#d6604d",
-                     "#5aae61", "#2166ac", "#053061"))
-
-
-#################################
-# 14 Genes at each LI/DC module #
-#################################
-
-# -1 wk
-View(rownames(tmod::showModule(Wm1_HGNC,
-                               Wm1_HGNC$Ortholog.symbol,
-                               module = c("LI.M27.0"))))
-View(rownames(tmod::showModule(Wm1_HGNC,
-                               Wm1_HGNC$Ortholog.symbol,
-                               module = c("LI.M27.1"))))
-
-View(rownames(tmod::showModule(Wm1_HGNC,
-                               Wm1_HGNC$Ortholog.symbol,
-                               module = c("LI.M29"))))
-View(rownames(tmod::showModule(Wm1_HGNC,
-                               Wm1_HGNC$Ortholog.symbol,
-                               module = c("LI.M86.0"))))
-
-
-LI.M11.0
-LI.S5
-LI.M86.0
-LI.M29
-LI.M37.0
-LI.S10
-LI.M4.3
-LI.M43.1
-LI.M118.0
-DC.M5.14
-
-
-######################################################
-# 14 Apply tmod CERNO test with MSigDB KEGG pathways #
-######################################################
-
-# Apply the CERNO test at each time point with FDR < 0.001
-
-# -1 wk
-Wm1_kegg <- tmodCERNOtest(Wm1_HGNC$Ortholog.symbol,
-                          qval = 0.001,
-                          order.by = "pval",
-                          mset = msig[kegg])
-
-head(Wm1_kegg)
-dim(Wm1_kegg)
-
-# +1 wk
-W1_kegg <- tmodCERNOtest(W1_HGNC$Ortholog.symbol,
-                         qval = 0.001,
-                         order.by = "pval",
-                         mset = msig[kegg])
-
-head(W1_kegg)
-dim(W1_kegg)
-
-# +2 wk
-W2_kegg <- tmodCERNOtest(W2_HGNC$Ortholog.symbol,
-                         qval = 0.001,
-                         order.by = "pval",
-                         mset = msig[kegg])
-
-head(W2_kegg)
-dim(W2_kegg)
-
-# +10 wk
-W10_kegg <- tmodCERNOtest(W10_HGNC$Ortholog.symbol,
-                          qval = 0.001,
-                          order.by = "pval",
-                          mset = msig[kegg])
-
-head(W10_kegg)
-dim(W10_kegg)
-
-# Output data
-kegglists <- list(Wm1_kegg, W1_kegg, W2_kegg, W10_kegg)
-keggIDcols <- rep(c("Module_id_kegg"), each = 4)
-keggfiles <- c(paste0(c("Wm1_kegg", "W1_kegg", "W2_kegg", "W10_kegg"),
-                      ".csv"))
-
-kegglists %<>% map2(.y = keggIDcols, ~ dplyr::rename(.x, !!.y := "ID"))
-
-pwalk(list(kegglists, file.path(tablesDir, keggfiles)),
-      write_csv,
-      col_names = TRUE)
-
-###############################################
-# 15 Compare KEGG pathways across time points #
-###############################################
-
-# Named KEGG lists
-kegglists <- list(Wm1_kegg, W1_kegg, W2_kegg, W10_kegg)
-names(kegglists) <- c("Wm1", "W1", "W2", "W10")
-
-# Summarise module information and order it by q-values
-kegg_summary <- tmodSummary(kegglists, clust = "qval")
-
-# Check data frame
-head(kegg_summary)
-dim(kegg_summary)
-
-# Output data
-kegg_summary %>%
-  dplyr::rename(Module_id = ID) %>%
-  write_csv(path = file.path(paste0(tablesDir, "/kegg_summary.csv")),
-            col_names = TRUE)
-
-######################################################
-# 16 Plot: panel of KEGG pathways across time points #
-######################################################
-
-# Create data frame for pie object
-# (the universe of 17,789 ortholog genes is the same for all time points,
-# so it does not matter which one is used as the input character vector
-# of gene symbols)
-pie_kegg <- tmodDecideTests(Wm1_HGNC$Ortholog.symbol,
-                            lfc = cbind(Wm1_HGNC$logFC,
-                                        W1_HGNC$logFC,
-                                        W2_HGNC$logFC,
-                                        W10_HGNC$logFC),
-                            pval = cbind(Wm1_HGNC$FDR,
-                                         W1_HGNC$FDR,
-                                         W2_HGNC$FDR,
-                                         W10_HGNC$FDR),
-                            lfc.thr = 0.5,
-                            pval.thr = 0.001,
-                            mset = msig[kegg])
-
-names(pie_kegg) <- c("Wm1", "W1", "W2", "W10")
-
-# Run this chunk together
-cairo_pdf(filename = file.path(paste0(imgDir, "/kegg_panel_plot.pdf")),
-          width    = 10,
-          height   = 12,
-          family   = "Calibri",
-          fallback_resolution = 300)
-tmodPanelPlot(kegglists,
-              pval.thr = 10^-3,
-              pie = pie_kegg,
-              pie.style = "pie",
-              pie.colors = c("#008837", "#e5e5e5", "#7b3294"),
-              clust = "effect")
-dev.off()
-
-####################################################
-# 17 Plots: evidence plot of selected KEGG modules #
-####################################################
-
-# +10 wk
-par(family = "Calibri")
-evidencePlot(W10_HGNC$Ortholog.symbol,
-             legend = "right",
-             main = "+10 wk",
-             lwd = 1.8,
-             c("LI.M27.0", "LI.M27.1", "LI.M24",
-               "LI.M29", "LI.M86.0", "LI.M115"),
-             mset = msig[kegg],
-             col = c("#67001f", "#b2182b", "#d6604d",
-                     "#5aae61", "#2166ac", "#053061"))
-
-
-############################
-# 18 Save Save .RData file #
+# 13 Save Save .RData file #
 ############################
 
 save.image("PPDb-RNA-seq-tmod.rda")
 
 ##########################
-# 19 Save R session info #
+# 14 Save R session info #
 ##########################
 
 devtools::session_info()
 
-########################
-# Proceed to heat maps #
-########################
+##############################
+# Proceed to other heat maps #
+##############################
 
 # File: 06-PPDb-RNA-seq_heatmaps.R
