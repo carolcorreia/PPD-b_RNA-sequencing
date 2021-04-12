@@ -6,9 +6,9 @@
 
 # Based on the pipeline created by Nalpas, N.C. (2014) 
 # DOI badge: http://dx.doi.org/10.5281/zenodo.12474
-# Author of current version (4.0.0): Correia, C.N.
-# DOI badge of current version:
-# Last updated on: 30/07/2017
+
+# Author: Carolina N. Correia
+# Last updated on: 12/04/2021
 
 ################################
 # Download and files check sum #
@@ -24,7 +24,7 @@
 # FastQC quality check of raw FASTQ files #
 ###########################################
 
-# Required software is FastQC v0.11.5, consult manual/tutorial
+# Required software is FastQC v0.11.9, consult manual/tutorial
 # for details: http://www.bioinformatics.babraham.ac.uk/projects/fastqc/
 
 # Create and enter the quality check output directory:
@@ -39,14 +39,20 @@ fastqc -o $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering \
 ### Moved this folder to my laptop via SCP
 ### and checked the HTML report. It worked fine.
 
+
 # Create a bash script to perform FastQC quality check on all fastq.gz files:
 for file in `find /workspace/storage/kmcloughlin/RNAseqTimeCourse/ \
--name *fastq.gz`; do echo "fastqc --noextract --nogroup -t 1 \
+-name *_P_*.fastq.gz`; do echo "fastqc --noextract --nogroup -t 1 \
+-o $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering $file" \
+>> fastqc.sh; done;
+
+for file in `find /workspace/storage/kmcloughlin/RNAseqTimeCourse/ \
+-name *_U_*.fastq.gz`; do echo "fastqc --noextract --nogroup -t 1 \
 -o $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering $file" \
 >> fastqc.sh; done;
 
 # Split and run all scripts on Stampede:
-split -d -l 70 fastqc.sh fastqc.sh.
+split -d -l 80 fastqc.sh fastqc.sh.
 for script in `ls fastqc.sh.*`
 do
 chmod 755 $script
@@ -61,24 +67,14 @@ done
 # Deleted all the HTML files:
 rm -r *.html
 
-# Check all output from FastQC:
-mkdir $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering/tmp
+####################################
+# MultiQC for consolidated reports #
+####################################
 
-for file in `ls *_fastqc.zip`; do unzip \
-$file -d $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering/tmp; \
-done;
-
-for file in \
-`find $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering/tmp \
--name summary.txt`; do more $file >> reports_pre-filtering.txt; done
-
-for file in \
-`find $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering/tmp \
--name fastqc_data.txt`; do head -n 10 $file >> basic_stats_pre-filtering.txt; \
-done
-
-# Remove temporary folder and its files:
-rm -rf $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering/tmp
+# Required software is MultiQc version 1.9, consult manual/tutorial
+# for details: https://multiqc.info/docs/#-20
+cd /home/ccorreia/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering
+multiqc .
 
 ##################################################################
 # Adapter-contamination and quality filtering of raw FASTQ files #
@@ -89,7 +85,7 @@ rm -rf $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/pre-filtering/tmp
 
 # Create a working directory for filtered reads:
 mkdir $HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/
-cd $HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/
+cd !$
 
 # Run ngsShoRT in one pair of reads to check if it's working:
 nohup perl /usr/local/src/ngsShoRT_2.2/ngsShoRT.pl -t 20 -mode trim -min_rl 100 \
@@ -101,8 +97,9 @@ nohup perl /usr/local/src/ngsShoRT_2.2/ngsShoRT.pl -t 20 -mode trim -min_rl 100 
 
 # Create bash scripts to perform filtering of each FASTQ file, keeping the
 # sequencing lane information:
+A6514_W10_P_R1_005.fastq.gz
 for file in `find /workspace/storage/kmcloughlin/RNAseqTimeCourse/ \
--name *R1_001.fastq.gz`; \
+-name *P_R1_001.fastq.gz`; \
 do file2=`echo $file | perl -p -e 's/R1(_00.\.fastq.gz)$/R2$1/'`; \
 sample=`basename $file | perl -p -e 's/R1(_00.\.fastq.gz)$/001/'`; \
 echo "perl /usr/local/src/ngsShoRT_2.2/ngsShoRT.pl -t 15 -mode trim -min_rl 100 \
@@ -184,12 +181,12 @@ done
 # FastQC quality check of filtered FASTQ files #
 ################################################
 
-# Required software is FastQC v0.11.5, consult manual/tutorial
+# Required software is FastQC v0.11.9, consult manual/tutorial
 # for details: http://www.bioinformatics.babraham.ac.uk/projects/fastqc/
 
 # Create and enter the quality check output directory:
 mkdir $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post-filtering
-cd $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post-filtering
+cd !$
 
 # Run FastQC in one file to see if it's working well:
 fastqc -o $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post-filtering \
@@ -222,66 +219,55 @@ done
 # Deleted all the HTML files:
 rm -r *.html
 
-# Check all output from FastQC:
-mkdir $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post-filtering/tmp
+####################################
+# MultiQC for consolidated reports #
+####################################
 
-for file in `ls *_fastqc.zip`; do unzip \
-$file -d $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post-filtering/tmp; \
-done;
-
-for file in \
-`find $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post-filtering/tmp \
--name summary.txt`; do more $file >> reports_post-filtering.txt; done
-
-for file in \
-`find $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post-filtering/tmp \
--name fastqc_data.txt`; do head -n 10 $file >> basic_stats_post-filtering.txt; \
-done
-
-# Remove temporary folder and its files:
-rm -rf $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post-filtering/tmp
+# Required software is MultiQc version 1.9, consult manual/tutorial
+# for details: https://multiqc.info/docs/#-20
+cd /home/ccorreia/scratch/PPDbRNAseqTimeCourse/quality_check/post-filtering
+multiqc .
 
 ##############################################################################
 # Alignment of FASTQ files against the Bos taurus reference genome with STAR #
 ##############################################################################
 
-# Required software is STAR 2.5.1b, consult manual/tutorial for details:
+# Required software is STAR 2.7.8a, consult manual/tutorial for details:
 https://github.com/alexdobin/STAR/blob/master/doc/STARmanual.pdf
 
-# NCBI changed the location of several genome and annotation files in their FTP
-# server on December 2016, which means that the original links listed below
-# do not work anymore. The same files used in this analysis can now be found at:
-# ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/003/055/GCF_000003055.6_Bos_taurus_UMD_3.1.1
+# Create and enter the working directory:
+mkdir /home/ccorreia/scratch/PPDbRNAseqTimeCourse/ARS-UCD1.2
+cd !$
 
-# Download Bos taurus reference genome, version UMD3.1.1 from NCBI:
-mkdir /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/source_file
-cd /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/source_file
-nohup wget nohup wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/003/055/GCF_000003055.6_Bos_taurus_UMD_3.1.1/GCF_000003055.6_Bos_taurus_UMD_3.1.1_genomic.fna.gz &
+# Download and unzip the Bos taurus reference genome ARS-UCD1.2 from NCBI:
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9913/106/GCF_002263795.1_ARS-UCD1.2/GCF_002263795.1_ARS-UCD1.2_genomic.fna.gz
+gunzip GCF_002263795.1_ARS-UCD1.2_genomic.fna.gz
 
-gunzip GCF_000003055.6_Bos_taurus_UMD_3.1.1_genomic.fna.gz
-
-# Download annotation file for UMD3.1.1 NCBI Bos taurus genomic annotation (GCF_000003055.6):
-mkdir /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/annotation_file
-cd /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/annotation_file
-wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF_000003055.6_Bos_taurus_UMD_3.1.1/GCF_000003055.6_Bos_taurus_UMD_3.1.1_genomic.gff.gz
-gunzip GCF_000003055.6_Bos_taurus_UMD_3.1.1_genomic.gff.gz
+# Download and unzip annotation file for ARS-UCD1.2 NCBI Bos taurus genomic Annotation Release 106:
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9913/106/GCF_002263795.1_ARS-UCD1.2/GCF_002263795.1_ARS-UCD1.2_genomic.gff.gz
+gunzip GCF_002263795.1_ARS-UCD1.2_genomic.gff.gz
 
 # Generate genome indexes files using annotations:
-mkdir /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/STAR-2.5.1b_index
-cd /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/STAR-2.5.1b_index
+mkdir STAR2.7.8a_index
+cd !$
 
 nohup STAR --runThreadN 20 --runMode genomeGenerate \
---genomeDir /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/STAR-2.5.1b_index \
+--genomeDir /home/ccorreia/scratch/PPDbRNAseqTimeCourse/ARS-UCD1.2/STAR2.7.8a_index \
 --genomeFastaFiles \
-/workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/source_file/GCF_000003055.6_Bos_taurus_UMD_3.1.1_genomic.fna \
---sjdbGTFfile /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/annotation_file/GCF_000003055.6_Bos_taurus_UMD_3.1.1_genomic.gff \
+/home/ccorreia/scratch/PPDbRNAseqTimeCourse/ARS-UCD1.2/GCF_002263795.1_ARS-UCD1.2_genomic.fna \
+--sjdbGTFfile /home/ccorreia/scratch/PPDbRNAseqTimeCourse/ARS-UCD1.2/GCF_002263795.1_ARS-UCD1.2_genomic.gff \
 --sjdbGTFtagExonParentTranscript Parent --sjdbOverhang 99 \
 --outFileNamePrefix \
-/workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/STAR-2.5.1b_index/Btau-UMD3.1.1 &
+/home/ccorreia/scratch/PPDbRNAseqTimeCourse/ARS-UCD1.2/STAR2.7.8a_index/ARS-UCD1.2 &
 
 # Create and enter alignment working directory:
-mkdir $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment
-cd $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment
+mkdir $HOME/scratch/PPDbRNAseqTimeCourse/STAR2.7.8a_alignment
+cd !$
+
+
+
+
+
 
 # Mapping reads from one FASTQ file to the indexed genome,
 # to check if it works well:
