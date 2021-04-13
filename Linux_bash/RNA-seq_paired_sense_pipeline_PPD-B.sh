@@ -8,7 +8,7 @@
 # DOI badge: http://dx.doi.org/10.5281/zenodo.12474
 
 # Author: Carolina N. Correia
-# Last updated on: 12/04/2021
+# Last updated on: 13/04/2021
 
 ################################
 # Download and files check sum #
@@ -264,28 +264,23 @@ nohup STAR --runThreadN 20 --runMode genomeGenerate \
 mkdir $HOME/scratch/PPDbRNAseqTimeCourse/STAR2.7.8a_alignment
 cd !$
 
-
-
-
-
-
 # Mapping reads from one FASTQ file to the indexed genome,
 # to check if it works well:
 nohup STAR --runMode alignReads --runThreadN 1 --genomeLoad LoadAndRemove \
---genomeDir /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/STAR-2.5.1b_index/ \
+--genomeDir /home/ccorreia/scratch/PPDbRNAseqTimeCourse/ARS-UCD1.2/STAR2.7.8a_index \
 --readFilesIn \
-$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_F_001/trimmed_A6511_W10_F_R1_001.fastq.gz,\
-$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_F_002/trimmed_A6511_W10_F_R1_002.fastq.gz,\
-$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_F_003/trimmed_A6511_W10_F_R1_003.fastq.gz,\
-$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_F_004/trimmed_A6511_W10_F_R1_004.fastq.gz,\
-$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_F_005/trimmed_A6511_W10_F_R1_005.fastq.gz \
-$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_F_001/trimmed_A6511_W10_F_R2_001.fastq.gz,\
-$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_F_002/trimmed_A6511_W10_F_R2_002.fastq.gz,\
-$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_F_003/trimmed_A6511_W10_F_R2_003.fastq.gz,\
-$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_F_004/trimmed_A6511_W10_F_R2_004.fastq.gz,\
-$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_F_005/trimmed_A6511_W10_F_R2_005.fastq.gz \
+$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_P_001/trimmed_A6511_W10_P_R1_001.fastq.gz,\
+$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_P_002/trimmed_A6511_W10_P_R1_002.fastq.gz,\
+$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_P_003/trimmed_A6511_W10_P_R1_003.fastq.gz,\
+$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_P_004/trimmed_A6511_W10_P_R1_004.fastq.gz,\
+$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_P_005/trimmed_A6511_W10_P_R1_005.fastq.gz \
+$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_P_001/trimmed_A6511_W10_P_R2_001.fastq.gz,\
+$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_P_002/trimmed_A6511_W10_P_R2_002.fastq.gz,\
+$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_P_003/trimmed_A6511_W10_P_R2_003.fastq.gz,\
+$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_P_004/trimmed_A6511_W10_P_R2_004.fastq.gz,\
+$HOME/scratch/PPDbRNAseqTimeCourse/fastq_sequence/A6511_W10_P_005/trimmed_A6511_W10_P_R2_005.fastq.gz \
 --readFilesCommand gunzip -c --outFilterMultimapNmax 10 \
---outFilterMismatchNmax 10 --outFileNamePrefix ./A6511_W10_F_ \
+--outFilterMismatchNmax 10 --outFileNamePrefix ./A6511_W10_P_ \
 --outSAMtype BAM Unsorted --outReadsUnmapped Fastx &
 
 # Create a bash script to perform alignment of paired FASTQ files:
@@ -302,10 +297,10 @@ read4=`echo $file4 | perl -p -e 's/(R1_00.)/R2_004/'`; \
 read5=`echo $file5 | perl -p -e 's/(R1_00.)/R2_005/'`; \
 sample=`basename $file | perl -p -e 's/\_R1_001\.fastq\.gz//'`; \
 foldername=`basename $sample | perl -p -e 's/trimmed\_//'`; \
-echo "mkdir $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment/$foldername; \
-cd $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment/$foldername; \
+echo "mkdir $HOME/scratch/PPDbRNAseqTimeCourse/STAR2.7.8a_alignment/$foldername; \
+cd $HOME/scratch/PPDbRNAseqTimeCourse/STAR2.7.8a_alignment/$foldername; \
 STAR --runMode alignReads --runThreadN 1 --genomeLoad LoadAndRemove \
---genomeDir /workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/STAR-2.5.1b_index/ \
+--genomeDir /home/ccorreia/scratch/PPDbRNAseqTimeCourse/ARS-UCD1.2/STAR2.7.8a_index \
 --readFilesIn $file,$file2,$file3,$file4,$file5 \
 $read1,$read2,$read3,$read4,$read5 --readFilesCommand gunzip -c \
 --outFilterMultimapNmax 10 --outFilterMismatchNmax 10 \
@@ -314,17 +309,20 @@ $read1,$read2,$read3,$read4,$read5 --readFilesCommand gunzip -c \
 >> alignment.sh; \
 done
 
-# Split and run all scripts on Stampede:
-split -d -l 70 alignment.sh alignment.sh.
-for script in `ls alignment.sh.*`
-do
-chmod 755 $script
-nohup ./$script > ${script}.nohup &
-done
+# Run script on Stampede:
+chmod 755 alignment.sh
+nohup ./alignment.sh > alignment.sh.nohup &
+
+
+
+
+
+
+
+
 
 # Check nohup.out file to see how many jobs finished successfully:
-grep -c 'Finished successfully' alignment.sh.00.nohup
-grep -c 'Finished successfully' alignment.sh.01.nohup
+grep -c 'Finished successfully' alignment.sh.nohup
 
 # Merge all STAR log.final.out files into a single file:
 for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment \
