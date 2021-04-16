@@ -8,7 +8,7 @@
 # DOI badge: http://dx.doi.org/10.5281/zenodo.12474
 
 # Author: Carolina N. Correia
-# Last updated on: 13/04/2021
+# Last updated on: 16/04/2021
 
 ################################
 # Download and files check sum #
@@ -313,41 +313,45 @@ done
 chmod 755 alignment.sh
 nohup ./alignment.sh > alignment.sh.nohup &
 
-
-
-
-
-
-
-
-
 # Check nohup.out file to see how many jobs finished successfully:
-grep -c 'Finished successfully' alignment.sh.nohup
+grep -c 'finished successfully' alignment.sh.nohup
 
 # Merge all STAR log.final.out files into a single file:
-for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment \
+for file in `find /home/ccorreia/scratch/PPDbRNAseqTimeCourse/STAR2.7.8a_alignment \
 -name *Log.final.out`; \
 do perl /home/nnalpas/SVN/star_report_opener.pl -report $file; done;
+
+# Transfer All_star_log_final_out.txt file to laptop via SCP.
+
+####################################
+# MultiQC for consolidated reports #
+####################################
+
+# Required software is MultiQc version 1.9, consult manual/tutorial
+# for details: https://multiqc.info/docs/#-20
+
+cd /home/ccorreia/scratch/PPDbRNAseqTimeCourse
+multiqc STAR2.7.8a_alignment
 
 #############################################
 # FastQC quality check of aligned BAM files #
 #############################################
 
-# Required software is FastQC v0.11.5, consult manual/tutorial
+# Required software is FastQC v0.11.9, consult manual/tutorial
 # for details: http://www.bioinformatics.babraham.ac.uk/projects/fastqc/
 
 # Create and go to working directory:
 mkdir $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post_alignment
-cd $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post_alignment
+cd !$
 
-# Create a bash script to perform FastQC quality check on aligned SAM files:
-for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment \
+# Create a bash script to perform FastQC quality check on aligned BAM files:
+for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/STAR2.7.8a_alignment \
 -name *.bam`; do echo "fastqc --noextract --nogroup -t 2 \
 -o $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post_alignment $file" >> \
 fastqc_aligned.sh; done;
 
 # Split and run all scripts on Stampede
-split -d -l 35 fastqc_aligned.sh fastqc_aligned.sh.
+split -d -l 40 fastqc_aligned.sh fastqc_aligned.sh.
 for script in `ls fastqc_aligned.sh.*`
 do
 chmod 755 $script
@@ -357,95 +361,152 @@ done
 # Delete all the HTML files:
 rm -r *.html
 
-# Check all output from FastQC:
-mkdir $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post_alignment/tmp
+####################################
+# MultiQC for consolidated reports #
+####################################
 
-for file in `ls *_fastqc.zip`; do unzip \
-$file -d $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post_alignment/tmp; \
+# Required software is MultiQc version 1.9, consult manual/tutorial
+# for details: https://multiqc.info/docs/#-20
+
+cd $HOME/scratch/PPDbRNAseqTimeCourse/quality_check
+multiqc post_alignment
+
+#########################
+# Calculate insert size #
+#########################
+
+### Ran Insert size steps on Rodeo, not Stampede.
+
+# Enter working directory:
+cd /home/workspace/ccorreia/PPD-b_insert_size
+
+# Sort aligned BAM files:
+for file in \
+`find /home/workspace/ccorreia/PPD-b_insert_size/STAR2.7.8a_alignment \
+-name *Aligned.out.bam`; \
+do outfile=`basename $file | perl -p -e 's/Aligned.out.bam/Sorted.out.bam/'`; \
+echo "java -jar /usr/local/src/picard/build/libs/picard.jar \
+SortSam I=$file O=$outfile SORT_ORDER=coordinate" >> sort.sh; \
 done
 
-for file in \
-`find $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post_alignment/tmp \
--name summary.txt`; do more $file >> reports_post-alignment.txt; done
-
-for file in \
-`find $HOME/scratch/PPDbRNAseqTimeCourse/quality_check/post_alignment/tmp \
--name fastqc_data.txt`; do head -n 10 $file >> basic_stats_post_alignment.txt; \
+# Split and run all scripts on Rodeo:
+split -d -l 40 sort.sh sort.sh.
+chmod 755 sort.sh.*
+for script in `ls sort.sh.*`;
+do nohup ./$script > ${script}.nohup &
 done
 
-# Check if all files were processed:
-grep -c '##FastQC' basic_stats_post_alignment.txt
-grep -c 'Basic Statistics' reports_post-alignment.txt
-grep -c 'Analysis complete' fastqc_aligned.sh.00.nohup
-grep -c 'Analysis complete' fastqc_aligned.sh.01.nohup
-grep -c 'Analysis complete' fastqc_aligned.sh.02.nohup
-grep -c 'Analysis complete' fastqc_aligned.sh.03.nohup
 
-# Remove temporary folder:
-rm -r tmp/
+
+
+
+
+
+
+# Collect insert sizes:
+for file in `ls *_Sorted.out.bam`; \
+do sample=`basename $file | perl -p -e 's/_Sorted.out.bam//'`; \
+echo "java -jar /usr/local/src/picard/build/libs/picard.jar \
+CollectInsertSizeMetrics \
+I=$file \
+O=${sample}_insert_size_metrics.txt \
+H=${sample}_insert_size_histogram.pdf M=0.5" >> collect_insert_size.sh; \
+done
+# Split and run all scripts on Rodeo
+chmod 755 collect_insert_size.sh
+for script in `ls collect_insert_size.sh`;
+do
+nohup ./$script > ${script}.nohup &
+done
+
+# Collect insert size metrics for all samples into one file:
+for file in `ls /home/workspace/alucena/ovineLN_RNAseq/insert_size/*_insert_size_metrics.txt`; \
+do sample=`basename $file | perl -p -e 's/_insert_size_metrics.txt//'`; \
+stats=`sed -n '/MEDIAN_INSERT_SIZE/{n;p;}' $file`; \
+printf "${sample}\t${stats}\n" >> All_insert_size.txt; \
+done
+wc -l All_insert_size.txt # 19 lines
+# Add header to summary stats file:
+header=`grep 'MEDIAN_INSERT_SIZE' /home/workspace/alucena/ovineLN_RNAseq/insert_size/N12_S29_insert_size_metrics.txt`; \
+sed -i $"1 i\Sample_id\t${header}" \
+All_insert_size.txt
+wc -l All_insert_size.txt # 20 lines
+# Transfer stats to laptop:
+scp \
+alucena@rodeo.ucd.ie:/home/workspace/alucena/ovineLN_RNAseq/insert_size/All_insert_size.txt .
+
+
+
+
+
 
 ###################################################################
 # Summarisation of gene counts with featureCounts for sense genes #
 ###################################################################
 
-# Required package is featureCounts, which is part of Subread 1.5.1 software,
+# Required package is featureCounts, which is part of Subread 1.6.4 software,
 # consult manual for details:
 # http://bioinf.wehi.edu.au/subread-package/SubreadUsersGuide.pdf
 
 # Create working directories:
 cd $HOME/scratch/PPDbRNAseqTimeCourse/
 mkdir -p Count_summarisation/sense
-cd $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense
+cd !$
 
 # Run featureCounts with one sample to check if it is working fine:
 featureCounts -a \
-/workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/annotation_file/GCF_000003055.6_Bos_taurus_UMD_3.1.1_genomic.gff \
--B -p -C -R -s 1 -T 15 -t gene -g Dbxref -o ./counts.txt \
-$HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment/A6511_W10_F/A6511_W10_F_Aligned.out.bam
+/home/ccorreia/scratch/PPDbRNAseqTimeCourse/ARS-UCD1.2/GCF_002263795.1_ARS-UCD1.2_genomic.gff \
+-B -p -C -R CORE -s 1 -T 15 -t gene -g Dbxref -F GFF -o ./counts.txt \
+$HOME/scratch/PPDbRNAseqTimeCourse/STAR2.7.8a_alignment/A6511_W10_P/A6511_W10_P_Aligned.out.bam
+
 
 # Create a bash script to run featureCounts on BAM file containing multihits and
 # uniquely mapped reads using the stranded parameter:
-for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/STAR-2.5.1b_alignment \
+for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/STAR2.7.8a_alignment \
 -name *_Aligned.out.bam`; \
 do sample=`basename $file | perl -p -e 's/_Aligned.out.bam//'`; \
 echo "mkdir $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/$sample; \
 cd $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/$sample; \
 featureCounts -a \
-/workspace/storage/genomes/bostaurus/UMD3.1.1_NCBI/annotation_file/GCF_000003055.6_Bos_taurus_UMD_3.1.1_genomic.gff \
--B -p -C -R -s 1 -T 10 -t gene -g Dbxref \
+/home/ccorreia/scratch/PPDbRNAseqTimeCourse/ARS-UCD1.2/GCF_002263795.1_ARS-UCD1.2_genomic.gff \
+-B -p -C -R CORE -s 1 -T 15 -t gene -g Dbxref -F GFF \
 -o ${sample}_sense-counts.txt $file" >> sense_count.sh; done
 
-# Split and run all scripts on Stampede:
-split -d -l 70 sense_count.sh sense_count.sh.
-for script in `ls sense_count.sh.*`
-do
-chmod 755 $script
-nohup ./$script > ${script}.nohup &
-done
+# Run script on Stampede:
+chmod 755 sense_count.sh
+nohup ./sense_count.sh > sense_count.sh.nohup &
+
+
+
+
+
+
+
+
+
 
 # Check if all files were processed:
-grep -c 'Read assignment finished.' sense_count.sh.00.nohup
-grep -c 'Read assignment finished.' sense_count.sh.01.nohup
-
+grep -c 'Summary of counting results can be found in file' sense_count.sh.nohup
 
 # Create bash script to merge stats info from .featureCounts from all samples
 # into a single file:
 for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/ \
--name *.featureCounts`; do echo echo \
+-name *.featureCounts.bam`; do echo echo \
 "\`basename $file\` \`cut $file -f2 | sort | uniq -c | perl -p -e 's/\n/ /'\` >> \
 annotation_summary_sense.txt" >> annotation_summary_sense.sh
 done
 
-# Split and run scripts on Stampede:
-split -d -l 70 annotation_summary_sense.sh annotation_summary_sense.sh.
-for script in `ls annotation_summary_sense.sh.*`
-do
-chmod 755 $script
-nohup ./$script &
-done
+# Run script on Stampede:
+chmod 755 annotation_summary_sense.sh
+nohup ./annotation_summary_sense.sh &
+
+
+
+
+
 
 # Check that all files were processed:
-grep -c '.featureCounts' annotation_summary_sense.txt
+grep -c '.featureCounts.bam' annotation_summary_sense.txt
 
 # Copy all *sense-counts.txt files to temporary folder:
 mkdir $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/tmp
@@ -459,24 +520,14 @@ done
 rm -r tmp
 
 
-########################################
-# R analysis of gene counts with edgeR #
-########################################
+####################################
+# MultiQC for consolidated reports #
+####################################
 
-# Subsequent sense genes analyses were performed using the R statistical
-# software and the edgeR package.
-# Please go to file: 01-PPDb-RNA-seq_paired_sense.R
+# Required software is MultiQc version 1.9, consult manual/tutorial
+# for details: https://multiqc.info/docs/#-20
 
-
-
-
-
-
-
-
-
-
-
-
+cd $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation
+multiqc sense
 
 
