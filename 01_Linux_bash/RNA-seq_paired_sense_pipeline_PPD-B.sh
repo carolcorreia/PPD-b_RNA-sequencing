@@ -8,7 +8,7 @@
 # DOI badge: http://dx.doi.org/10.5281/zenodo.12474
 
 # Author: Carolina N. Correia
-# Last updated on: 16/04/2021
+# Last updated on: 17/04/2021
 
 ################################
 # Download and files check sum #
@@ -396,13 +396,6 @@ for script in `ls sort.sh.*`;
 do nohup ./$script > ${script}.nohup &
 done
 
-
-
-
-
-
-
-
 # Collect insert sizes:
 for file in `ls *_Sorted.out.bam`; \
 do sample=`basename $file | perl -p -e 's/_Sorted.out.bam//'`; \
@@ -412,33 +405,27 @@ I=$file \
 O=${sample}_insert_size_metrics.txt \
 H=${sample}_insert_size_histogram.pdf M=0.5" >> collect_insert_size.sh; \
 done
-# Split and run all scripts on Rodeo
-chmod 755 collect_insert_size.sh
-for script in `ls collect_insert_size.sh`;
-do
-nohup ./$script > ${script}.nohup &
+
+# Split and run all scripts on Rodeo:
+split -d -l 40 collect_insert_size.sh collect_insert_size.sh.
+chmod 755 collect_insert_size.sh.*
+for script in `ls collect_insert_size.sh.*`;
+do nohup ./$script > ${script}.nohup &
 done
 
 # Collect insert size metrics for all samples into one file:
-for file in `ls /home/workspace/alucena/ovineLN_RNAseq/insert_size/*_insert_size_metrics.txt`; \
+for file in `ls /home/workspace/ccorreia/PPD-b_insert_size/*_insert_size_metrics.txt`; \
 do sample=`basename $file | perl -p -e 's/_insert_size_metrics.txt//'`; \
 stats=`sed -n '/MEDIAN_INSERT_SIZE/{n;p;}' $file`; \
 printf "${sample}\t${stats}\n" >> All_insert_size.txt; \
 done
-wc -l All_insert_size.txt # 19 lines
+
 # Add header to summary stats file:
-header=`grep 'MEDIAN_INSERT_SIZE' /home/workspace/alucena/ovineLN_RNAseq/insert_size/N12_S29_insert_size_metrics.txt`; \
+header=`grep 'MEDIAN_INSERT_SIZE' /home/workspace/ccorreia/PPD-b_insert_size/A6636_W10_U_insert_size_metrics.txt`; \
 sed -i $"1 i\Sample_id\t${header}" \
 All_insert_size.txt
-wc -l All_insert_size.txt # 20 lines
-# Transfer stats to laptop:
-scp \
-alucena@rodeo.ucd.ie:/home/workspace/alucena/ovineLN_RNAseq/insert_size/All_insert_size.txt .
 
-
-
-
-
+# Transfer All_insert_size.txt to laptop via SCP.
 
 ###################################################################
 # Summarisation of gene counts with featureCounts for sense genes #
@@ -476,22 +463,13 @@ featureCounts -a \
 chmod 755 sense_count.sh
 nohup ./sense_count.sh > sense_count.sh.nohup &
 
-
-
-
-
-
-
-
-
-
 # Check if all files were processed:
 grep -c 'Summary of counting results can be found in file' sense_count.sh.nohup
 
 # Create bash script to merge stats info from .featureCounts from all samples
 # into a single file:
 for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/ \
--name *.featureCounts.bam`; do echo echo \
+-name *.featureCounts`; do echo echo \
 "\`basename $file\` \`cut $file -f2 | sort | uniq -c | perl -p -e 's/\n/ /'\` >> \
 annotation_summary_sense.txt" >> annotation_summary_sense.sh
 done
@@ -500,13 +478,8 @@ done
 chmod 755 annotation_summary_sense.sh
 nohup ./annotation_summary_sense.sh &
 
-
-
-
-
-
 # Check that all files were processed:
-grep -c '.featureCounts.bam' annotation_summary_sense.txt
+grep -c '.featureCounts' annotation_summary_sense.txt
 
 # Copy all *sense-counts.txt files to temporary folder:
 mkdir $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/tmp
@@ -516,9 +489,8 @@ for file in `find $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/ 
 -t $HOME/scratch/PPDbRNAseqTimeCourse/Count_summarisation/sense/tmp; \
 done
 
-# Transfer all files from tmp to laptop, then remove tmp folder:
+# Transfer temporary folder to laptop, then remove it:
 rm -r tmp
-
 
 ####################################
 # MultiQC for consolidated reports #
