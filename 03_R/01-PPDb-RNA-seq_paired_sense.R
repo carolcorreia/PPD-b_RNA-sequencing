@@ -6,71 +6,77 @@
 #                                 Part 1                                 #
 ##########################################################################
 
-# Based on the workflow created by Nalpas, N.C. (2014)
-# DOI badge: http://dx.doi.org/10.5281/zenodo.12474
-
-# Author of current version (4.0.0): Correia, C.N.
-# DOI badge of current version:
-# Last updated on 19/09/2017
-
-##################################
-# 01 Working directory and RData #
-##################################
-
-# Set working directory
-setwd("/Users/ccorreia/Dropbox/CSF/Animal_Genomics/PPD-B-sti_vs_uns/edgeR_sense")
-getwd()
-
-# Define variables for working and file directories
-workDir <- getwd()
-workDir
-fileDir <- "/Users/ccorreia/Dropbox/CSF/Animal_Genomics/PPD-B-sti_vs_uns/edgeR_sense/PPDbCounts"
-imgDir <- paste0(workDir, "/Figures")
-
-# Load previously saved data
-load("PPDb-RNA-seq_paired_sense.RData")
+# Author: Carolina N. Correia
+# Last updated on 31/05/2021
 
 ############################################
-# 02 Load and/or install required packages #
+# 01 Load and/or install required packages #
 ############################################
 
+library(tidyverse)
+library(magrittr)
+library(ggridges)
+library(ggrepel)
+library(devtools)
+library(here)
+library(extrafont)
+library(Cairo)
 library(Biobase)
 library(edgeR)
-library(AnnotationFuncs)
 library(org.Bt.eg.db)
-library(devtools)
-library(plyr)
-library(tidyverse)
-library(stringr)
-library(magrittr)
 library(biobroom)
-library(ggjoy)
-library(ggrepel)
 
 # Uncomment functions below to install packages in case you don't have them
 
-# Bioconductor packages
-#source("https://bioconductor.org/biocLite.R")
-#biocLite("AnnotationFuncs")
-#biocLite("edgeR")
-#biocLite("Biobase")
-#biocLite("geneLenDataBase")
-#biocLite("org.Bt.eg.db")
-
 # CRAN packages
 #install.packages("devtools")
-#install.packages("plyr")
-#install.packages("lubridate")
 #install.packages("tidyverse")
 #install.packages("ggrepel")
-#install.packages("ggjoy")
+#install.packages("ggridges")
+#install.packages("here")
+#install.packages("broom")
+#install.packages("extrafont")
+#install.packages("Cairo")
+
+# Bioconductor and BiocManager
+#install.packages("BiocManager")
+#BiocManager::install(version = "3.13")
+
+# Bioconductor packages
+#BiocManager::install("Biobase")
+#BiocManager::install("limma")
+#BiocManager::install("edgeR")
+#BiocManager::install("geneLenDataBase")
+#BiocManager::install("org.Bt.eg.db")
+#BiocManager::install("biobroom")
+
+##############################################
+# 02 Working directory, fonts, and time zone #
+##############################################
+
+# Check working directory
+here()
+
+# Define variables for subdirectories
+countsDir <- here("PPDbCounts")
+imgDir <- here("Figures")
+tablesDir <- here("Tables")
+
+# Set time zone
+Sys.setenv(TZ = "Europe/Dublin")
+
+# Register fonts with R for the PDF output device
+font_import()
+
+# Load fonts
+loadfonts()
 
 #########################################
 # 03 Import featureCounts sense counts  #
 #########################################
 
 # Create a vector of file names
-files <- list.files(path        = fileDir,
+files <- list.files(path        = countsDir,
                     pattern     = "^A6",
                     all.files   = TRUE,
                     full.names  = FALSE,
@@ -80,8 +86,8 @@ files <- list.files(path        = fileDir,
 files
 length(files)
 
-# Create a dataframe with raw counts for all samples
-rawCounts <- readDGE(path         = fileDir,
+# Create a data frame with raw counts for all samples
+rawCounts <- readDGE(path         = countsDir,
                      files        = files,
                      header       = TRUE,
                      comment.char = "#",
@@ -101,6 +107,7 @@ colnames(rawCounts$counts) %<>%
 
 # Correct row names in counts
 rownames(rawCounts$counts) %<>%
+  str_replace(",VGNC:VGNC:.*", "") %>%
   str_replace("BGD.*,", "") %>%
   str_replace(",miRBase:.*", "") %>%
   str_replace("GeneID:", "")
@@ -169,11 +176,11 @@ rawCounts$samples$time.point <- rownames(rawCounts$samples)
 rawCounts$samples$time.point %<>%
   str_replace("A\\d\\d\\d\\d_", "") %>%
   str_replace("_(P|U)", "") %>%
-  str_replace("W_1", "Wm1") %>%
-  factor(levels = c("Wm1", "W1", "W2", "W10"))
+  str_replace("W_1", "Pre1") %>%
+  factor(levels = c("Pre1", "W1", "W2", "W10"))
 
 # Check data frame
-head(rawCounts$samples)
+rawCounts$samples
 
 #####################
 # 07 Create DGElist #
@@ -208,7 +215,13 @@ identical(rownames(rawCounts$samples), rownames(PPDb_dgelist$samples))
 PPDb_dgelist$samples$animal <- rawCounts$samples$animal
 PPDb_dgelist$samples$time.point <- rawCounts$samples$time.point
 
+#Check samples data frame
 head(PPDb_dgelist$samples)
+
+# Check factor levels
+levels(PPDb_dgelist$samples$group)
+levels(PPDb_dgelist$samples$animal)
+levels(PPDb_dgelist$samples$time.point)
 
 ################################################
 # 08 Density plot: raw gene counts per library #
@@ -216,7 +229,7 @@ head(PPDb_dgelist$samples)
 
 # Tidy DGElist and plot data
 PPDb_dgelist %>%
-  tidy() %>%
+  broom::tidy() %>%
   ggplot() +
       geom_density(aes(x     = log10(count + 1),
                        group = sample)) +
@@ -229,11 +242,11 @@ density_raw
 
 # Export image
 ggsave("PPDb-density_plot_raw_counts.png",
+       path      = imgDir,
        plot      = density_raw,
        device    = "png",
        limitsize = FALSE,
-       dpi       = 300,
-       path      = workDir)
+       dpi       = 300)
 
 ###########################################
 # 09 Remove zero and lowly expressed tags #
@@ -257,7 +270,7 @@ head(PPDb_filt$counts)
 PPDb_filt$counts %>%
   as.data.frame() %>%
   rownames_to_column(var = "EntrezID") %>%
-  write_csv(file.path(paste0(workDir, "/PPDb-sense_filt_counts.csv")),
+  write_csv(here(tablesDir, "/PPDb-sense_filt_counts.csv"),
             col_names = TRUE)
 
 ##############################
@@ -276,7 +289,6 @@ head(PPDb_dgelist$samples)
 # calculating normalisation factors
 PPDb_norm <- calcNormFactors(PPDb_filt, method = "TMM")
 head(PPDb_norm$samples)
-
 
 #######################
 # 12 Save .RData file # ----
