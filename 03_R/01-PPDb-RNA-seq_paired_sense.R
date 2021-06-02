@@ -7,7 +7,7 @@
 ##########################################################################
 
 # Author: Carolina N. Correia
-# Last updated on 31/05/2021
+# Last updated on 02/06/2021
 
 ############################################
 # 01 Load and/or install required packages #
@@ -15,8 +15,6 @@
 
 library(tidyverse)
 library(magrittr)
-library(ggridges)
-library(ggrepel)
 library(devtools)
 library(here)
 library(extrafont)
@@ -31,12 +29,12 @@ library(biobroom)
 # CRAN packages
 #install.packages("devtools")
 #install.packages("tidyverse")
-#install.packages("ggrepel")
-#install.packages("ggridges")
 #install.packages("here")
 #install.packages("broom")
 #install.packages("extrafont")
 #install.packages("Cairo")
+#install.packages("remotes")
+#remotes::install_github("romainfrancois/nothing")
 
 # Bioconductor and BiocManager
 #install.packages("BiocManager")
@@ -150,7 +148,7 @@ dim(annotCounts)
 annotCounts %>%
   dplyr::select(gene_symbol, gene_name, everything()) %>%
   rownames_to_column(var = "EntrezID") %>%
-  write_csv(file.path(paste0(workDir, "/PPDb-sense_annot-rawcounts.csv")),
+  write_csv(here(tablesDir, "PPDb-sense_annot-rawcounts.csv"),
             col_names = TRUE)
 
 #########################################
@@ -209,7 +207,7 @@ head(PPDb_dgelist$counts)
 head(PPDb_dgelist$samples)
 head(PPDb_dgelist$genes)
 
-# Include addtional experimental information into DGElist
+# Include additional experimental information into DGElist
 identical(rownames(rawCounts$samples), rownames(PPDb_dgelist$samples))
 
 PPDb_dgelist$samples$animal <- rawCounts$samples$animal
@@ -233,7 +231,7 @@ PPDb_dgelist %>%
   ggplot() +
       geom_density(aes(x     = log10(count + 1),
                        group = sample)) +
-      theme_bw(base_size = 12, base_family = "Calibri") +
+      theme_bw(base_size = 16, base_family = "Calibri") +
       ylab("Density of raw gene counts per sample") +
       xlab(expression(paste(log[10], "(counts + 1)"))) -> density_raw
 
@@ -248,21 +246,17 @@ ggsave("PPDb-density_plot_raw_counts.png",
        limitsize = FALSE,
        dpi       = 300)
 
-###########################################
-# 09 Remove zero and lowly expressed tags #
-###########################################
+############################################
+# 09 Remove zero and lowly expressed genes #
+############################################
 
-# Filter non expressed tags (all genes that have zero counts in all samples)
-PPDb_no_zeros <- PPDb_dgelist[rowSums(PPDb_dgelist$counts) > 0, ]
-dim(PPDb_no_zeros$counts)
-head(PPDb_no_zeros$counts)
-colnames(PPDb_no_zeros$counts)
-
-# Filter lowly expressed tags, retaining only tags with
-# more than 1 count per million in 10 or more libraries
-# (10 libraries correspond to 10 biological replicates and represent
-# one PPDb-stimulated [P] or Non-stimulated [U] group at any given time point)
-PPDb_filt <- PPDb_no_zeros[rowSums(cpm(PPDb_no_zeros) > 1) >= 10, ]
+# Remove lowly expressed genes
+# The filterByExpr function keeps rows that have worthwhile counts in a
+# minimum number of samples (two samples in this case because the smallest
+# group size is two: PPDbStimulated and NonStimulated)
+keep <- filterByExpr(PPDb_dgelist, group = group)
+summary(keep)
+PPDb_filt <- PPDb_dgelist[keep, , keep.lib.sizes = FALSE]
 dim(PPDb_filt$counts)
 head(PPDb_filt$counts)
 
@@ -270,7 +264,7 @@ head(PPDb_filt$counts)
 PPDb_filt$counts %>%
   as.data.frame() %>%
   rownames_to_column(var = "EntrezID") %>%
-  write_csv(here(tablesDir, "/PPDb-sense_filt_counts.csv"),
+  write_csv(here(tablesDir, "PPDb-sense_filt_counts.csv"),
             col_names = TRUE)
 
 ##############################
@@ -290,17 +284,21 @@ head(PPDb_dgelist$samples)
 PPDb_norm <- calcNormFactors(PPDb_filt, method = "TMM")
 head(PPDb_norm$samples)
 
-#######################
-# 12 Save .RData file # ----
-#######################
-
-save.image(file = "PPDb-RNA-seq_paired_sense.RData")
-
 ##########################
-# 13 Save R session info # ----
+# 12 Save R session info #
 ##########################
 
 devtools::session_info()
+
+#######################
+# 13 Save .RData file #
+#######################
+
+# Detach all loaded packages (except base R packages):
+require(nothing, quietly = TRUE)
+
+# Save all environment objects:
+save.image(file = "PPDb-RNA-seq_paired_sense.RData")
 
 ######################################
 # Proceed to Part 2 of this analysis #

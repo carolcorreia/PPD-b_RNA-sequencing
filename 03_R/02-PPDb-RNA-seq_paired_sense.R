@@ -6,71 +6,62 @@
 #                                 Part 2                                 #
 ##########################################################################
 
-# Based on the workflow created by Nalpas, N.C. (2014)
-# DOI badge: http://dx.doi.org/10.5281/zenodo.12474
-
-# Author of current version (4.0.0): Correia, C.N.
-# DOI badge of current version:
-# Last updated on 27/10/2017
-
-##################################
-# 14 Working directory and RData #
-##################################
-
-# Set working directory
-setwd("/Users/ccorreia/Dropbox/CSF/Animal_Genomics/PPD-B-sti_vs_uns/edgeR_sense")
-getwd()
-
-# Define variables for working and file directories
-workDir <- getwd()
-workDir
-fileDir <- "/Users/ccorreia/Dropbox/CSF/Animal_Genomics/PPD-B-sti_vs_uns/edgeR_sense/PPDbCounts"
-imgDir <- paste0(workDir, "/Figures")
-tablesDir <- paste0(workDir, "/Tables")
-
-# Load previously saved data
-load("PPDb-RNA-seq_paired_sense.RData")
+# Author: Carolina N. Correia
+# Last updated on 02/06/2021
 
 ############################################
-# 15 Load and/or install required packages #
+# 14 Load and/or install required packages #
 ############################################
 
 library(statmod)
 library(edgeR)
 library(devtools)
-library(plyr)
 library(tidyverse)
-library(stringr)
 library(magrittr)
-library(purrr)
-library(forcats)
 library(biobroom)
-library(ggjoy)
+library(ggridges)
 library(ggrepel)
 library(Cairo)
 library(cowplot)
 library(extrafont)
+library(here)
+library(ggfortify)
 
 # Uncomment functions below to install packages in case you don't have them
 
-#install.packages("cowplot")
-#install.packages("extrafont")
 #install.packages("statmod")
+#install.packages("cowplot")
+#install.packages("ggfortify")
+#install.packages("ggrepel")
+#install.packages("ggridges")
 
-###################
-# 16 Set up fonts #
-###################
+##############################################
+# 15 Working directory, fonts, and time zone #
+##############################################
 
-# Registered fonts with R for the PDF output device
+# Check working directory
+here()
+
+# Load previously saved R data and environment
+load("PPDb-RNA-seq_paired_sense.RData")
+
+# Check variables for subdirectories
+imgDir
+tablesDir
+
+# Set time zone
+Sys.setenv(TZ = "Europe/Dublin")
+
+# Load registered fonts with R for the PDF output device
 loadfonts()
 
 ##########################################################
-# 17 Tidy DGElist for exploratory data analysis plotting #
+# 16 Tidy DGElist for exploratory data analysis plotting #
 ##########################################################
 
-tidy_PPDbNorm <-tidy(PPDb_norm, addSamples = TRUE)
+tidy_PPDbNorm <- broom::tidy(PPDb_norm, addSamples = TRUE)
 
-# Correct PPDb stimulation info
+# Correct PPD-b stimulation info
 tidy_PPDbNorm$group %<>%
   stringr::str_replace("PPDbStimulated", "PPD-b-stimulated") %>%
   stringr::str_replace("NonStimulated", "Non-stimulated") %>%
@@ -89,7 +80,7 @@ levels(tidy_PPDbNorm$animal)
 
 # Correct time point info
 tidy_PPDbNorm$time.point %<>%
-  stringr::str_replace("Wm1", "W-1") %>%
+  stringr::str_replace("Pre1", "W-1") %>%
   factor(levels = c("W-1", "W1", "W2", "W10"))
 
 # Check factors
@@ -117,15 +108,15 @@ levels(tidy_PPDbNorm$labels)
 tidy_PPDbNorm
 
 ########################################################
-# 18 Plot: density of filtered gene counts per library #
+# 17 Plot: density of filtered gene counts per library #
 ########################################################
 
 ggplot(tidy_PPDbNorm, aes(x = log10(count + 1),
                           y = labels)) +
   scale_y_discrete(limits = rev(levels(tidy_PPDbNorm$labels))) +
-  geom_joy(aes(fill = group), alpha = 0.5) +
-  scale_fill_manual("Treatment", values = c("#b2b2b2", "#e06377")) +
-  theme_bw(base_size = 12, base_family = "Calibri") +
+  geom_density_ridges(aes(fill = group), alpha = 0.5) +
+  scale_fill_manual("Treatment", values = c("#808080", "#e06377")) +
+  theme_bw(base_size = 16, base_family = "Calibri") +
   ggtitle("Density of filtered gene counts per sample") +
   facet_grid(. ~ group) +
   ylab("Time point_Animal number") +
@@ -136,9 +127,9 @@ density_norm
 
 # Export high quality image
 ggsave("PPDb-density-filt.pdf",
+       path      = imgDir,
        plot      = density_norm,
        device    = cairo_pdf,
-       path      = imgDir,
        limitsize = FALSE,
        dpi       = 300,
        height    = 10,
@@ -146,206 +137,126 @@ ggsave("PPDb-density-filt.pdf",
        units     = "in")
 
 ####################################
-# 19 Plots: MDS at each time point #
+# 18 Plots: PCA at each time point #
 ####################################
 
-### Plot MDS of Week -1 time point
-mds_W_1 <- plotMDS.DGEList(x = PPDb_norm[ , grep(pattern = "_W.1_",
-                                                 x = colnames(PPDb_norm))],
-                           plot = FALSE,
-                           method = "bcv")
+############ One week pre-infection
+# Calculate PCs using log2CPM filtered counts
+Pre1_pca <- prcomp(t(cpm(PPDb_norm[ , grep(pattern = "_W_1_", x = colnames(PPDb_norm))],
+                    log = TRUE)),
+              scale. = TRUE)
 
-names(mds_W_1)
-W_1_coord <- mds_W_1$cmdscale.out # Get coords to plot with ggplot2
+# Get sample names for plotting
+Pre1_samples <- PPDb_norm$samples
+Pre1_samples %<>%
+  rownames_to_column(var = "sample_name") %>%
+  dplyr::filter(stringr::str_detect(sample_name, "_W_1_"))
 
-W_1_coord %<>% # Tidy coords
-  tidy() %>%
-  dplyr::rename(sample = .rownames, x = X1, y = X2) %>%
-  dplyr::mutate(animal = sample, group = sample)
-
-W_1_coord$animal %<>% # Clean animal IDs for plotting
-  str_replace("_W.+_\\w", "") %>%
-  str_replace("A", "") %>%
-  factor()
-
-W_1_coord$group %<>% # Clean group info for plotting
-  str_replace("A\\d\\d\\d\\d_.+_", "") %>%
-  str_replace("P", "PPD-b-stimulated") %>%
-  str_replace("U", "Non-stimulated") %>%
-  factor(levels = c("Non-stimulated", "PPD-b-stimulated"))
-
-# Check tidy coords
-W_1_coord
-
-# Plot MDS with ggplot2
-MDS_W_1 <- ggplot(W_1_coord) +
-  geom_point(aes(x = x, y = y,
-                 colour = group,
-                 shape  = group),
-             size = 3) +
-  scale_colour_manual("Treatment",
-                      values = c("#b2b2b2", "#e06377")) +
+# Plot PCA
+Pre1_plot <- autoplot(Pre1_pca,
+                      data = Pre1_samples,
+                      colour = "group",
+                      shape = "group",
+                      size = 3) +
+  theme_bw(base_size = 16, base_family = "Calibri") +
+  scale_colour_manual("Treatment", values = c("#808080", "#e06377")) +
   scale_shape_manual("Treatment",
                      values = c(19, 17)) +
-  geom_text_repel(aes(x = x, y = y, label = animal)) +
-  theme_bw(base_size = 12, base_family = "Calibri") +
-  ggtitle("-1 wk") +
-  xlab("BCV distance 1") +
-  ylab("BCV distance 2")
+  geom_text_repel(aes(label = animal), size = 4) +
+  ggtitle("-1 wk")
 
-# Check W-1 MDS plot
-MDS_W_1
+Pre1_plot
 
 
-### Plot MDS of Week +1 time point
-mds_W1 <- plotMDS.DGEList(x = PPDb_norm[, grep(pattern = "_W1_",
-                                               x = colnames(PPDb_norm))],
-                          plot = FALSE,
-                          method = "bcv")
+############ One week post-infection
+# Calculate PCs using log2CPM filtered counts
+W1_pca <- prcomp(t(cpm(PPDb_norm[ , grep(pattern = "_W1_", x = colnames(PPDb_norm))],
+                       log = TRUE)),
+                 scale. = TRUE)
 
-names(mds_W1)
-W1_coord <- mds_W1$cmdscale.out # Get coords to plot with ggplot2
+# Get sample names for plotting
+W1_samples <- PPDb_norm$samples
+W1_samples %<>%
+  rownames_to_column(var = "sample_name") %>%
+  dplyr::filter(stringr::str_detect(sample_name, "_W1_"))
 
-W1_coord %<>% # Tidy coords
-  tidy() %>%
-  dplyr::rename(sample = .rownames, x = X1, y = X2) %>%
-  dplyr::mutate(animal = sample, group = sample)
-
-W1_coord$animal %<>% # Clean animal IDs for plotting
-  str_replace("_W.+_\\w", "") %>%
-  str_replace("A", "") %>%
-  factor()
-
-W1_coord$group %<>% # Clean group info for plotting
-  str_replace("A\\d\\d\\d\\d_.+_", "") %>%
-  str_replace("P", "PPD-b-stimulated") %>%
-  str_replace("U", "Non-stimulated") %>%
-  factor(levels = c("Non-stimulated", "PPD-b-stimulated"))
-
-# Check tidy coords
-W1_coord
-
-# Plot MDS with ggplot2
-MDS_W1 <- ggplot(W1_coord) +
-  geom_point(aes(x = x, y = y,
-                 colour = group,
-                 shape  = group),
-             size = 3) +
-  scale_colour_manual("Treatment",
-                      values = c("#b2b2b2", "#e06377")) +
+# Plot PCA
+W1_plot <- autoplot(W1_pca,
+                    data = W1_samples,
+                    colour = "group",
+                    shape = "group",
+                    size = 3) +
+  theme_bw(base_size = 16, base_family = "Calibri") +
+  scale_colour_manual("Treatment", values = c("#808080", "#e06377")) +
   scale_shape_manual("Treatment",
                      values = c(19, 17)) +
-  geom_text_repel(aes(x = x, y = y, label = animal)) +
-  theme_bw(base_size = 12, base_family = "Calibri") +
-  ggtitle("+1 wk") +
-  xlab("BCV distance 1") +
-  ylab("BCV distance 2")
+  geom_text_repel(aes(label = animal), size = 4) +
+  ggtitle("+1 wk")
 
-# Check W1 MDS plot
-MDS_W1
+W1_plot
 
 
-### Plot MDS of Week +2 time point
-mds_W2 <- plotMDS.DGEList(x = PPDb_norm[, grep(pattern = "_W2_",
-                                       x = colnames(PPDb_norm))],
-                          plot = FALSE,
-                          method = "bcv")
+############ Two weeks post-infection
+# Calculate PCs using log2CPM filtered counts
+W2_pca <- prcomp(t(cpm(PPDb_norm[ , grep(pattern = "_W2_", x = colnames(PPDb_norm))],
+                       log = TRUE)),
+                 scale. = TRUE)
 
-names(mds_W2)
-W2_coord <- mds_W2$cmdscale.out # Get coords to plot with ggplot2
+# Get sample names for plotting
+W2_samples <- PPDb_norm$samples
+W2_samples %<>%
+  rownames_to_column(var = "sample_name") %>%
+  dplyr::filter(stringr::str_detect(sample_name, "_W2_"))
 
-W2_coord %<>% # Tidy coords
-  tidy() %>%
-  dplyr::rename(sample = .rownames, x = X1, y = X2) %>%
-  dplyr::mutate(animal = sample, group = sample)
-
-W2_coord$animal %<>% # Clean animal IDs for plotting
-  str_replace("_W.+_\\w", "") %>%
-  str_replace("A", "") %>%
-  factor()
-
-W2_coord$group %<>% # Clean group info for plotting
-  str_replace("A\\d\\d\\d\\d_.+_", "") %>%
-  str_replace("P", "PPD-b-stimulated") %>%
-  str_replace("U", "Non-stimulated") %>%
-  factor(levels = c("Non-stimulated", "PPD-b-stimulated"))
-
-# Check tidy coords
-W2_coord
-
-# Plot MDS with ggplot2
-MDS_W2 <- ggplot(W2_coord) +
-  geom_point(aes(x = x, y = y,
-                 colour = group,
-                 shape  = group),
-             size = 3) +
-  scale_colour_manual("Treatment",
-                      values = c("#b2b2b2", "#e06377")) +
+# Plot PCA
+W2_plot <- autoplot(W2_pca,
+                    data = W2_samples,
+                    colour = "group",
+                    shape = "group",
+                    size = 3) +
+  theme_bw(base_size = 16, base_family = "Calibri") +
+  scale_colour_manual("Treatment", values = c("#808080", "#e06377")) +
   scale_shape_manual("Treatment",
                      values = c(19, 17)) +
-  geom_text_repel(aes(x = x, y = y, label = animal)) +
-  theme_bw(base_size = 12, base_family = "Calibri") +
-  ggtitle("+2 wk") +
-  xlab("BCV distance 1") +
-  ylab("BCV distance 2")
+  geom_text_repel(aes(label = animal), size = 4) +
+  ggtitle("+2 wk")
 
-# Check W2 MDS plot
-MDS_W2
+W2_plot
 
 
-### Plot MDS of Week +10 time point
-mds_W10 <- plotMDS.DGEList(x = PPDb_norm[, grep(pattern = "_W10_",
-                                        x = colnames(PPDb_norm))],
-                           plot = FALSE,
-                           method = "bcv")
+############ Ten weeks post-infection
+# Calculate PCs using log2CPM filtered counts
+W10_pca <- prcomp(t(cpm(PPDb_norm[ , grep(pattern = "_W10_", x = colnames(PPDb_norm))],
+                        log = TRUE)),
+                  scale. = TRUE)
 
-names(mds_W10)
-W10_coord <- mds_W10$cmdscale.out # Get coords to plot with ggplot2
+# Get sample names for plotting
+W10_samples <- PPDb_norm$samples
+W10_samples %<>%
+  rownames_to_column(var = "sample_name") %>%
+  dplyr::filter(stringr::str_detect(sample_name, "_W10_"))
 
-W10_coord %<>% # Tidy coords
-  tidy() %>%
-  dplyr::rename(sample = .rownames, x = X1, y = X2) %>%
-  dplyr::mutate(animal = sample, group = sample)
-
-W10_coord$animal %<>% # Clean animal IDs for plotting
-  str_replace("_W.+_\\w", "") %>%
-  str_replace("A", "") %>%
-  factor()
-
-W10_coord$group %<>% # Clean group info for plotting
-  str_replace("A\\d\\d\\d\\d_.+_", "") %>%
-  str_replace("P", "PPD-b-stimulated") %>%
-  str_replace("U", "Non-stimulated") %>%
-  factor(levels = c("Non-stimulated", "PPD-b-stimulated"))
-
-# Check tidy coords
-W10_coord
-
-# Plot MDS with ggplot2
-MDS_W10 <- ggplot(W10_coord) +
-  geom_point(aes(x = x, y = y,
-                 colour = group,
-                 shape  = group),
-             size = 3) +
-  scale_colour_manual("Treatment",
-                      values = c("#b2b2b2", "#e06377")) +
+# Plot PCA
+W10_plot <- autoplot(W10_pca,
+                     data = W10_samples,
+                     colour = "group",
+                     shape = "group",
+                     size = 3) +
+  theme_bw(base_size = 16, base_family = "Calibri") +
+  scale_colour_manual("Treatment", values = c("#808080", "#e06377")) +
   scale_shape_manual("Treatment",
                      values = c(19, 17)) +
-  geom_text_repel(aes(x = x, y = y, label = animal)) +
-  theme_bw(base_size = 12, base_family = "Calibri") +
-  ggtitle("+10 wk") +
-  xlab("BCV distance 1") +
-  ylab("BCV distance 2")
+  geom_text_repel(aes(label = animal), size = 4) +
+  ggtitle("+10 wk")
 
-# Check W10 MDS plot
-MDS_W10
+W10_plot
 
 
 ### Export high quality image for all MDS plots
-files_MDS <- paste0(c("MDS_W_1", "MDS_W1", "MDS_W2", "MDS_W10"), ".pdf")
-plots_MDS <- list(MDS_W_1, MDS_W1, MDS_W2, MDS_W10)
+files_PCA <- paste0(c("Pre1_plot", "W1_plot", "W2_plot", "W10_plot"), ".pdf")
+plots_PCA <- list(Pre1_plot, W1_plot, W2_plot, W10_plot)
 
-purrr::pwalk(list(files_MDS, plots_MDS),
+purrr::pwalk(list(files_PCA, plots_PCA),
       ggsave,
       device    = cairo_pdf,
       path      = imgDir,
@@ -356,37 +267,37 @@ purrr::pwalk(list(files_MDS, plots_MDS),
       units     = "in")
 
 #####################################################
-# 20 Plot: Combine all MDS plots into single figure #
+# 19 Plot: Combine all PCA plots into single figure #
 #####################################################
 
 # Set grid
-MDS_grid <- plot_grid((MDS_W_1 + theme(legend.position = "none")),
-                      (MDS_W1  + theme(legend.position = "none")),
-                      (MDS_W2 + theme(legend.position = "none")),
-                      (MDS_W10 + theme(legend.position = "none")),
-                      labels = c("A", "B", "C", "D"),
+PCA_grid <- plot_grid((Pre1_plot + theme(legend.position = "none")),
+                      (W1_plot  + theme(legend.position = "none")),
+                      (W2_plot + theme(legend.position = "none")),
+                      (W10_plot + theme(legend.position = "none")),
+                      labels = c("A)", "B)", "C)", "D)"),
                       ncol = 2,
                       scale = .96)
 
 # Check plot
-MDS_grid
+PCA_grid
 
 # Get legend from one MDS plot
-legend <- get_legend(MDS_W_1)
+legend <- get_legend(Pre1_plot)
 
 # Add legend to grid
-MDS_grid_leg <- plot_grid(MDS_grid, legend, ncol = 1,
+PCA_grid_leg <- plot_grid(PCA_grid, legend, ncol = 1,
                           rel_widths = c(1, .3),
                           rel_heights = c(1, .3))
 
 # Check plot
-MDS_grid_leg
+PCA_grid_leg
 
 # Export high quality image for both plots
-files_MDSgrid <- paste0(c("MDS_grid", "MDS_grid_leg"), ".pdf")
-plots_MDSgrid <- list(MDS_grid, MDS_grid_leg)
+files_PCAgrid <- paste0(c("PCA_grid", "PCA_grid_leg"), ".pdf")
+plots_PCAgrid <- list(PCA_grid, PCA_grid_leg)
 
-purrr::pwalk(list(files_MDSgrid, plots_MDSgrid),
+purrr::pwalk(list(files_PCAgrid, plots_PCAgrid),
              ggsave,
              device    = cairo_pdf,
              path      = imgDir,
@@ -397,65 +308,73 @@ purrr::pwalk(list(files_MDSgrid, plots_MDSgrid),
              units     = "in")
 
 ##################################
-# 21 Define experimental factors #
+# 20 Review experimental factors #
 ##################################
 
 head(PPDb_norm$samples)
 
-# PPD-b stimulation factor
-condition <- PPDb_norm$samples$group
+# Treatment (Non-stimulated or PPD-b stimulated)
+levels(PPDb_norm$samples$group)
 
-# Time point factor
-time.point <- PPDb_norm$samples$time.point
+# Time points (infection status is nested within time points)
+levels(PPDb_norm$samples$time.point)
 
-# Animal factor
-animal <- PPDb_norm$samples$animal
+# Animal ID
+levels(PPDb_norm$samples$animal)
 
-# Combine PPD-b stimulation and time point into one factor
-# to simplify contrats
-cond.time <- factor(paste(PPDb_norm$samples$group,
-                          PPDb_norm$samples$time.point,
-                          sep="."),
-                    levels = c("NonStimulated.Wm1", "NonStimulated.W1",
-                               "NonStimulated.W2", "NonStimulated.W10",
-                               "PPDbStimulated.Wm1", "PPDbStimulated.W1",
-                               "PPDbStimulated.W2", "PPDbStimulated.W10"))
+##############################
+# 21 Create a design matrix  #
+##############################
 
-#################################################
-# 22 Create a design matrix for paired analysis #
-#################################################
+# This is based on Section 3.5 (Comparisons both between and within subjects)
+# from the edgeR User's Guide (Last revised 12 May 2021)
 
-# Create a design matrix with animal as a blocking factor
-block_animal <- model.matrix(~animal + cond.time,
-                             data = PPDb_norm$samples)
+# Initialize the design matrix with animal effects to adjust for baseline
+# differences between the animals (effectively adding animal ID as
+# a blocking factor due to paired nature of samples)
+design <- model.matrix(~animal, data = PPDb_norm$samples)
 
-dim(block_animal)
+# Now define the treatment-specific effects at each time point
+# Pre1.PPDbStimulated: genes responding to PPDb at -1 wk pre-infection
+Pre1.PPDbStimulated <- PPDb_norm$samples$time.point == "Pre1" &
+                    PPDb_norm$samples$group == "PPDbStimulated"
+# W1.PPDbStimulated: genes responding to PPDb at +1 wk post-infection
+W1.PPDbStimulated <- PPDb_norm$samples$time.point == "W1" &
+                    PPDb_norm$samples$group == "PPDbStimulated"
+# W2.PPDbStimulated: genes responding to PPDb at +2 wk post-infection
+W2.PPDbStimulated <- PPDb_norm$samples$time.point == "W2" &
+                    PPDb_norm$samples$group == "PPDbStimulated"
+# W10.PPDbStimulated: genes responding to PPDb at +10 wk post-infection
+W10.PPDbStimulated <- PPDb_norm$samples$time.point == "W10" &
+  PPDb_norm$samples$group == "PPDbStimulated"
+
+# Append them to the design matrix
+design <- cbind(design, Pre1.PPDbStimulated, W1.PPDbStimulated,
+                W2.PPDbStimulated, W10.PPDbStimulated)
+
+# Check design matrix
+dim(design)
 dim(PPDb_norm$samples)
-head(block_animal)
-
-# Rename design matrix columns for simplicity
-colnames(block_animal) %<>%
-  str_replace("animal", "") %>%
-  str_replace("cond.time", "")
-
-head(block_animal)
+head(design)
 
 # Output the design matrix info
-write_csv(as.data.frame(block_animal),
-          path = file.path(paste0(workDir, "/PPDb_design-matrix.csv")),
+as.data.frame(design) %>%
+  rownames_to_column(var = "rownames") %>%
+  write_csv(file = here(tablesDir, "PPDb_design-matrix.csv"),
           col_names = TRUE)
 
 #########################################
-# 23 Estimate the dispersion parameters #
+# 22 Estimate the dispersion parameters #
 #########################################
 
 # Common and trended dispersions are estimated with the
 # Cox-Reid method and tagwise dispersions with the
-# empirical Bayes method
-PPDb_disp <- estimateDisp.DGEList(y       = PPDb_norm,
-                                  design  = block_animal,
-                                  robust  = TRUE,
-                                  verbose = TRUE)
+# weighted likelihood empirical Bayes method to obtain posterior
+# dispersion estimates
+PPDb_disp <- estimateDisp(y       = PPDb_norm,
+                          design  = design,
+                          robust  = TRUE,
+                          verbose = TRUE)
 
 names(PPDb_disp)
 
@@ -465,175 +384,35 @@ PPDb_disp$common.dispersion
 # Check the calculated dispersion's square root,
 # which corresponds to the biological coefficient of variation (BCV)
 sqrt(PPDb_disp$common.dispersion)
-sqrt(PPDb_disp$tagwise.dispersion)
-
-# Create a matrix of the tagwise dispersion associated with gene information
-Tagwisedisp <- cbind(PPDb_disp$genes, PPDb_disp$tagwise.dispersion)
-head(Tagwisedisp)
-dim(Tagwisedisp)
-
-# Output tagwise dispersion values with gene info
-Tagwisedisp <- as.data.frame(cbind(PPDb_disp$genes,
-                                   PPDb_disp$tagwise.dispersion))
-write_csv(Tagwisedisp,
-          path = file.path(paste0(workDir, "/PPDb_Tagwise_dispersion.csv")),
-          col_names = TRUE)
-
-################################
-# 24 Plot: BCV and dispersions #
-################################
-
-# Create a dataframe with the dispersion values
-names(PPDb_disp)
-
-Disp <- as.data.frame(cbind(PPDb_disp$genes,
-                            PPDb_disp$tagwise.dispersion,
-                            PPDb_disp$common.dispersion,
-                            PPDb_disp$trended.dispersion,
-                            PPDb_disp$AveLogCPM))
-
-colnames(Disp) %<>%
-  str_replace("PPDb_disp\\$", "")
-
-Disp %<>%
-  dplyr::mutate(type_point = "Tagwise dispersion") %>%
-  dplyr::mutate(type_hline = "Common dispersion") %>%
-  dplyr::mutate(type_smooth = "Trended dispersion")
-
-# Plot all dispersions
-PPDb_BCV <- ggplot(Disp) +
-              geom_point(aes(x = AveLogCPM,
-                             y = sqrt(tagwise.dispersion),
-                             fill = type_point),
-                         alpha = 0.5) +
-              geom_hline(aes(yintercept = sqrt(common.dispersion),
-                             colour = type_hline)) +
-              geom_smooth(aes(x = AveLogCPM,
-                              y = sqrt(trended.dispersion),
-                              colour = type_smooth),
-                              linetype = 2) +
-              scale_fill_manual("", values = c("black")) +
-              scale_colour_manual("", values = c("red", "blue")) +
-              theme_bw(base_size = 14, base_family = "Calibri") +
-              ggtitle("Estimated dispersions (NB model)") +
-              xlab(expression(paste("Average ", log[2],"CPM"))) +
-              ylab("Biological Coefficient of Variation")
-
-PPDb_BCV
-
-# Output high resolution plot
-ggsave("PPDb_BCV.pdf",
-       plot = PPDb_BCV,
-       device    = cairo_pdf,
-       path      = imgDir,
-       limitsize = FALSE,
-       dpi       = 300,
-       height    = 10,
-       width     = 14,
-       units     = "in")
 
 ####################
-# 25 Fit GLM model #
+# 23 Fit GLM model #
 ####################
 
 # Fit a quasi-likelihood negative binomial generalized log-linear model
 # for each tag using the design matrix and calculated dispersion
 PPDb_fitQL <- glmQLFit(y = PPDb_disp,
-                       design = block_animal,
+                       design = design,
                        robust = TRUE)
 
 names(PPDb_fitQL)
 colnames(PPDb_fitQL$design)
 
-###########################
-# 26 Plot: QL dispersions #
-###########################
-
-# Create a dataframe with the dispersion values
-names(PPDb_fitQL)
-
-DispQL <- as.data.frame(cbind(AveLogCPM = PPDb_fitQL$AveLogCPM,
-                              deviance = PPDb_fitQL$deviance,
-                              df.residual.zeros = PPDb_fitQL$df.residual.zeros,
-                              var.prior = PPDb_fitQL$var.prior,
-                              var.post = PPDb_fitQL$var.post))
-
-DispQL %<>%
-  dplyr::mutate(type_point = "Raw dispersion (NB)") %>%
-  dplyr::mutate(type_point2 = "Squeezed EB dispersion") %>%
-  dplyr::mutate(type_smooth = "Trended EB dispersion")
-
-head(DispQL)
-
-# Plot all dispersions
-PPDb_BCVQL <- ggplot(DispQL) +
-                geom_point(aes(x = AveLogCPM,
-                               y = sqrt(sqrt(deviance/df.residual.zeros)),
-                               fill = type_point),
-                           alpha = 0.5) +
-                geom_point(aes(x = AveLogCPM,
-                               y = sqrt(sqrt(var.post)),
-                               colour = type_point2),
-                           alpha = 0.5) +
-                geom_smooth(aes(x = AveLogCPM,
-                                y = sqrt(sqrt(var.prior)),
-                                colour = type_smooth),
-                            linetype = 2) +
-                scale_fill_manual("", values = c("black")) +
-                scale_colour_manual("", values = c("indianred4", "blue")) +
-                theme_bw(base_size = 14, base_family = "Calibri") +
-                ggtitle("Estimated QL dispersions") +
-                xlab(expression(paste("Average ", log[2],"CPM"))) +
-                ylab("Quarter-Root Mean Deviance")
-
-PPDb_BCVQL
-
-# Output high resolution plot
-ggsave("PPDb_BCVQL.pdf",
-       plot = PPDb_BCVQL,
-       device    = cairo_pdf,
-       path      = imgDir,
-       limitsize = FALSE,
-       dpi       = 300,
-       height    = 10,
-       width     = 14,
-       units     = "in")
-
-################################
-# 27 Combine dispersions plots #
-################################
-
-# Set grids
-BCV_grid <- plot_grid(PPDb_BCV,
-                      PPDb_BCVQL,
-                      labels = c("A)", "B)"),
-                      nrow = 2)
-
-# Check plot
-BCV_grid
-
-# Export high quality image
-ggsave("BCV_grid.pdf",
-       plot      = BCV_grid,
-       device    = cairo_pdf,
-       path      = imgDir,
-       limitsize = FALSE,
-       dpi       = 300,
-       height    = 10,
-       width     = 8,
-       units     = "in")
-
-#######################
-# 28 Save .RData file #
-#######################
-
-save.image(file = "PPDb-RNA-seq_paired_sense.RData")
-
 ##########################
-# 29 Save R session info #
+# 24 Save R session info #
 ##########################
 
 devtools::session_info()
+
+#######################
+# 25 Save .RData file #
+#######################
+
+# Detach all loaded packages (except base R packages):
+require(nothing, quietly = TRUE)
+
+# Save all environment objects:
+save.image(file = "PPDb-RNA-seq_paired_sense.RData")
 
 ######################################
 # Proceed to Part 3 of this analysis #
