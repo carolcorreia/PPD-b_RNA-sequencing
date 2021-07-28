@@ -4,30 +4,15 @@
 ######################################################################
 
 # Author: Carolina N. Correia
-# GitHub Repository DOI:
-# Date: October 7th 2017
-
-##################################
-# 01 Working directory and RData #
-##################################
-
-# Set working directory
-setwd("/Users/ccorreia/Dropbox/CSF/Animal_Genomics/PPD-B-sti_vs_uns/edgeR_sense")
-
-# Define variables for specific directories
-workDir <- getwd()
-tablesDir <- paste0(workDir, "/Tables")
-imgDir <- paste0(workDir, "/Figures")
+# Last updated on 28/07/2021
 
 ############################################
-# 02 Load and/or install required packages #
+# 01 Load and/or install required packages #
 ############################################
 
 # Load packages
-library(plyr)
 library(tidyverse)
 library(magrittr)
-library(stringr)
 library(devtools)
 library(waffle)
 library(extrafont)
@@ -35,6 +20,37 @@ library(Cairo)
 library(skimr)
 library(scales)
 library(cowplot)
+library(here)
+
+# Uncomment functions below to install packages in case you don't have them
+
+# GitHub package
+#devtools::install_github("hrbrmstr/waffle")
+
+# CRAN package
+#install.packages("skimr")
+#install.packages("scales")
+#install.packages("cowplot")
+
+##############################################
+# 02 Working directory, fonts, and time zone #
+##############################################
+
+# Check working directory
+here()
+
+# Define variables for subdirectories
+imgDir <- here("Figures")
+tablesDir <- here("Tables")
+
+# Set time zone
+Sys.setenv(TZ = "Europe/Dublin")
+
+# Register fonts with R for the PDF output device
+font_import()
+
+# Load fonts
+loadfonts()
 
 ###################################
 # 03 Import ngsShoRT summary file #
@@ -156,7 +172,7 @@ View(ngsShortPU)
 ###############################
 
 # Import file and convert to tibble
-STARlogAll <- as.tibble(read.delim("All_star_log_final_out.txt"))
+STARlogAll <- read_delim("All_star_log_final_out.txt", delim = "\t")
 
 View(STARlogAll)
 
@@ -164,38 +180,19 @@ View(STARlogAll)
 # 11 Clean data frame #
 #######################
 
-# Remove unnecessary columns
+# Remove unnecessary column
 STARlogAll %<>%
-  dplyr::select(-Number.of.input.reads,
-                -Number.of.reads.mapped.to.too.many.loci,
-                -X..of.reads.mapped.to.too.many.loci)
-
-# Remove fresh samples
-STARlogAll <- dplyr::filter(STARlogAll, !grepl("_F", Sample_id))
-
-# Check data frame
-View(STARlogAll)
-
-################################
-# 12 Rename data frame columns #
-################################
-
-STARlogAll %<>%
-  dplyr::rename(labels = Sample_id,
-                `No. uniquely mapped reads` = Uniquely.mapped.reads.number,
-                `% uniquely mapped reads` = Uniquely.mapped.reads..,
-                `Mean mapped length` = Average.mapped.length,
-                `No. reads mapped to multiple loci` = Number.of.reads.mapped.to.multiple.loci,
-                `% reads mapped to multiple loci` = X..of.reads.mapped.to.multiple.loci,
-                `No. unmapped reads` = Unmapped.reads,
-                `% unmapped reads` = X..Unmapped.reads)
+  dplyr::select(-`Number of input reads`)
 
 # Check data frame
 View(STARlogAll)
 
 #########################################
-# 13 Join ngsShort and STAR data frames #
+# 12 Join ngsShort and STAR data frames #
 #########################################
+
+# Create column with keys for joining data frames
+STARlogAll$labels <- STARlogAll$Sample_id
 
 # Clean labels
 STARlogAll$labels %<>%
@@ -203,64 +200,46 @@ STARlogAll$labels %<>%
   factor(levels = levels(ngsShortPU$labels))
 
 # Join data frames
-Supp_tableIV2 <- inner_join(ngsShortPU, STARlogAll)
+Supp_table2 <- inner_join(ngsShortPU, STARlogAll)
 
 # Check data frame
-View(Supp_tableIV2)
+View(Supp_table2)
 
 ###########################
-# 14 Export RNA-seq stats #
+# 13 Export RNA-seq stats #
 ###########################
 
-write_csv(Supp_tableIV2,
-          path = file.path(paste0(tablesDir, "/Supp_tableIV2.csv")),
+write_csv(Supp_table2,
+          file = here(tablesDir, "Supp_table2.csv"),
           col_names = TRUE)
 
 ######################################
-# 15 Calculate RNA-seq summary stats #
+# 14 Calculate RNA-seq summary stats #
 ######################################
 
 # Remove percent symbol and convert data to numeric type
-Supp_tableIV2$`% uniquely mapped reads` %<>%
+Supp_table2$`Uniquely mapped reads %` %<>%
   str_replace("%", "") %>%
   as.numeric()
 
-Supp_tableIV2$`% reads mapped to multiple loci` %<>%
+Supp_table2$`% of reads mapped to multiple loci` %<>%
+  str_replace("%", "") %>%
+  as.numeric()
+
+Supp_table2$`% of reads mapped to too many loci` %<>%
   str_replace("%", "") %>%
   as.numeric()
 
 # Calculate summary stats
-RNAseqStats <- skim(Supp_tableIV2)
+RNAseqStats <- skim(Supp_table2)
 
-# Tidy summary stats
-stats_to_keep <- c("mean", "sd", "max", "min", "median")
+###########################################
+# 15 Plot: Waffle charts of RNA-seq stats #
+###########################################
 
+# Get the mean values for read filtering
 RNAseqStats %>%
-  dplyr::filter(stat %in% stats_to_keep) %>%
-  tidyr::spread(stat, value) %>%
-  dplyr::select(-type, -level) -> RNAseqStats_tidy
-
-###################
-# 16 Set up fonts #
-###################
-
-# Import fonts
-font_import()
-
-# Registered fonts with R for the PDF output device
-loadfonts()
-
-###########################################
-# 17 Plot: Waffle charts of RNA-seq stats #
-###########################################
-
-# Filtering
-RNAseqStats_tidy %>%
-  dplyr::filter(var == "% reads post-filtering") %>%
-  dplyr::select(var, mean) %>%
-  tidyr::spread(var, mean) %>%
-  dplyr::mutate(`% removed reads` = 100 - `% reads post-filtering`) %>%
-  round()
+  dplyr::filter(skim_variable == "% reads post-filtering")
 
 filt_reads <- c(`Reads post-filtering (82%)` = 82,
                 `Removed reads (18%)` = 18)
@@ -271,32 +250,34 @@ filt_waffle <- waffle(filt_reads,
        title = "Filtering of reads",
        colors = c("#5ab4ac", "#d8b365"))
 
-filt_waffle <- filt_waffle + theme(text=element_text(size = 16, family = "Calibri"))
+filt_waffle <- filt_waffle +
+  theme(text=element_text(size = 16, family = "Calibri"))
 
 
-# Alignment
-vars1 <- c("% uniquely mapped reads",
-           "% reads mapped to multiple loci",
-           "% unmapped reads")
+# Get the mean values for read alignment
+RNAseqStats %>%
+  dplyr::filter(skim_variable == "Uniquely mapped reads %")
 
-RNAseqStats_tidy %>%
-  dplyr::filter(var %in% vars1) %>%
-  dplyr::select(var, mean) %>%
-  tidyr::spread(var, mean) %>%
-  round() %>%
-  View()
+RNAseqStats %>%
+  dplyr::filter(skim_variable == "% Unmapped reads")
 
+RNAseqStats %>%
+  dplyr::filter(skim_variable == "% of reads mapped to multiple loci")
 
-align_reads <- c(`Uniquely mapped reads (85%)` = 85,
-                 `Unmapped reads (11%)` = 11,
-                 `Reads mapped to multiple loci (4%)` = 4)
+RNAseqStats %>%
+  dplyr::filter(skim_variable == "% of reads mapped to too many loci")
+
+align_reads <- c(`Uniquely mapped reads (87.3%)` = 87.3,
+                 `Unmapped reads (9.5%)` = 9.5,
+                 `Reads mapped to multiple or too many loci (3.2%)` = 3.2)
 align_waffle <- waffle(align_reads,
                        rows = 5,
                        size = 0.5,
                        title = "Alignment of reads",
                        colors = c("#5e3c99", "#b2abd2", "#e66101"))
 
-align_waffle <- align_waffle + theme(text=element_text(size = 16, family = "Calibri"))
+align_waffle <- align_waffle +
+  theme(text=element_text(size = 16, family = "Calibri"))
 
 # Combine plots
 grid_waffle <- plot_grid(filt_waffle,
@@ -320,8 +301,3 @@ ggsave("grid_waffle.pdf",
 
 devtools::session_info()
 
-###################################
-# Proceed to modules and pathways #
-###################################
-
-# File: 05-PPDb-RNA-seq_tmod.R
